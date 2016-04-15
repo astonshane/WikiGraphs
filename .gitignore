@@ -26,3 +26,7 @@
 *.exe
 *.out
 *.app
+
+
+# wikipedia xml files:
+*.xml
