@@ -4,7 +4,10 @@
 #include <iostream>
 #include <string>
 #include <map>
+#include <set>
 #include <algorithm>
+
+typedef std::map<std::string, std::set<std::string>> LinkMap;
 
 int g_world_size;
 int g_my_rank;
@@ -12,7 +15,7 @@ std::string g_filename = "enwiki-20160305-pages-articles.xml";
 
 void parse_file(MPI_File *infile);
 void regex_test();
-void find_links(std::string section, std::string current_title, std::map<std::string, std::vector<std::string>> &links);
+void find_links(std::string section, std::string current_title, LinkMap &links);
 
 
 int main(int argc, char** argv) {
@@ -62,7 +65,7 @@ void parse_file(MPI_File *infile){
   char * chunk;
   std::string current_title;
 
-  std::map<std::string, std::vector<std::string>> links;
+  LinkMap links;
 
   while (links.size() < 500){
     chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
@@ -83,7 +86,7 @@ void parse_file(MPI_File *infile){
       find_links(prefix, current_title, links);
 
       current_title = title_match[1].str();
-      links[current_title] = std::vector<std::string>();
+      links[current_title] = std::set<std::string>();
 
       std::string suffix = title_match.suffix();
       //std::cout << "new page:" << current_title << std::endl;
@@ -96,12 +99,12 @@ void parse_file(MPI_File *infile){
   }
 
   for (const auto &key : links) {
-    std::cout << g_my_rank << "  "<< key.first << std::endl;
+    std::cout << g_my_rank << "  " << key.first << "  " << key.second.size() << std::endl;
   }
 
 }
 
-void find_links(std::string section, std::string current_title, std::map<std::string, std::vector<std::string>> &links){
+void find_links(std::string section, std::string current_title, LinkMap &links){
   //links[current_title].push_back("test");
   //std::cout << section << std::endl;
   std::regex link_regex("\\[\\[([^ ]*)\\]\\]");
@@ -110,7 +113,7 @@ void find_links(std::string section, std::string current_title, std::map<std::st
     std::ssub_match sub_match = link_match[1];
     std::string piece = sub_match.str();
     //std::cout << piece << '\n';
-    links[current_title].push_back(piece);
+    links[current_title].insert(piece);
     //std::cout << current_title << " > " << piece << std::endl;
     section = link_match.suffix().str();
   }
