@@ -31,76 +31,102 @@ int main(int argc, char** argv) {
   // Print off a hello world message
   printf("Hello world from rank %d out of %d processors\n", g_my_rank, g_world_size);
 
+  // Open up the wikipedia xml file
   MPI_File infile;
   MPI_File_open(MPI_COMM_WORLD, g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
+
+  // Parse the file
   parse_file(&infile);
 
   if (g_my_rank == 0){
     //regex_test();
   }
 
+  // Close the file
   MPI_File_close(&infile);
+
   // Finalize the MPI environment.
   MPI_Finalize();
 
   return 0;
 }
 
+// Parse the input file: pull out page titles and any links from a page to another
 void parse_file(MPI_File *infile){
   //get file size
   MPI_Offset filesize;
   MPI_File_get_size(*infile, &filesize);
 
+  // the size of each chunk that will be read in at a time
+  //  TODO: find an optimal setting for this so that we aren't producing too many read reqeusts
+  int chunk_size = 1000000;
   //get size of the chunk this rank will handle
   long long int max_size = filesize / g_world_size;
+  // where this rank will stop reading the file (aka where the next rank will start reading)
+  long long int stopping_point = max_size * (g_my_rank + 1);
 
-  //get the start point for this rank in the file
-  MPI_Offset offset = std::max(max_size * g_my_rank, max_size * g_my_rank - 1000);
+  //get the start point for this rank in the file:
+  //    subtract chunk_size from the 'logical' start point to make sure
+  //    that each node has a title for the links that it finds
+  MPI_Offset offset = std::max(max_size * g_my_rank, max_size * g_my_rank - chunk_size);
 
-  printf("Rank %d ==> filesize: %lld ==> chunk size: %lld ==> start point: %lld\n", g_my_rank, filesize, max_size, offset);
+  printf("Rank %d ==> start point: %lld\n", g_my_rank, offset);
 
+  // the regex to find a tile in the file
   std::regex title_regex("<title>(.+)</title>");
 
-  int chunk_size = 1000;
+  // declare some variables
   char * chunk;
-  std::string current_title;
-
+  std::string current_title = "";
   LinkMap links;
 
-  while (links.size() < 500){
+  // keep going until the offset is in the next ranks group
+  int count = 0;
+  while (offset < stopping_point && links.size() < 1000){
+    std::cout << count << std::endl;
+    count ++;
+    // allocate a chunk to read in from the file
     chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
+    // read it in
     MPI_File_read_at(*infile, offset, chunk, chunk_size, MPI_CHAR, MPI_STATUS_IGNORE);
+    // end the string
     chunk[chunk_size] = '\0';
-    //printf("read in: %s", chunk);
+    // make it a c++ string for convenience
     std::string chunk_string(chunk);
+    // free the allocated space
     free(chunk);
 
     std::smatch title_match;
-    if (std::regex_search(chunk_string, title_match, title_regex)){
-      /*for (size_t i = 0; i < title_match.size(); ++i) {
-          std::ssub_match sub_match = title_match[i];
-          std::string piece = sub_match.str();
-          std::cout << "  submatch " << i << ": " << piece << '\n';
-      }*/
-      std::string prefix = title_match.prefix();
-      find_links(prefix, current_title, links);
+    // keep looping while there is another title in the the current chunk
+    while (std::regex_search(chunk_string, title_match, title_regex)){
+      // if we've already found at least one title, search the first part of the chunk for any links
+      if (current_title != ""){
+        find_links(title_match.prefix(), current_title, links);
+      }
 
+      // overwrite current_title with the new one
       current_title = title_match[1].str();
+      // initilize the new title's spot in the links map with an empty set
       links[current_title] = std::set<std::string>();
 
-      std::string suffix = title_match.suffix();
-      //std::cout << "new page:" << current_title << std::endl;
-      find_links(suffix, current_title, links);
-    }else{
-      find_links(chunk_string, current_title, links);
+      //printf("title %lu: %s\n", links.size(), current_title.c_str());
+
+      // set the chunk_string to be everything after the title
+      chunk_string = title_match.suffix();
     }
+    // do one last search through the remainder of the chunk for any links
+    find_links(chunk_string, current_title, links);
 
     offset += chunk_size;
   }
 
-  for (const auto &key : links) {
+  //output the contents of the links map after parsing
+  /*for (const auto &key : links) {
     std::cout << g_my_rank << "  " << key.first << "  " << key.second.size() << std::endl;
-  }
+    for (const auto &val: key.second){
+      std::cout << "    " << val << std::endl;
+    }
+  }*/
 
 }
 
