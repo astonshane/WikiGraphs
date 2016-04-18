@@ -37,10 +37,10 @@ int main(int argc, char** argv) {
   MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
-  parse_file(&infile);
+  //parse_file(&infile);
 
   if (g_my_rank == 0){
-    //regex_test();
+    regex_test();
   }
 
   // Close the file
@@ -149,16 +149,33 @@ void find_links(std::string section, std::string current_title, LinkMap &links){
 
 void regex_test(){
 
-  std::string s ("this <title>abc test def</title> has a submarine as <title>another title</title> subsequence");
-  boost::smatch m;
-  boost::regex e ("<title[^>]*>([^<]+)</title>");   // matches words beginning by "sub"
+  std::string chunk_string ("this <title>abc test def</title><title>banana</title>has a submarine as <title>another title</title> subsequence");
+  /*std::cout << chunk_string << std::endl;
+  std::size_t found_start = chunk_string.find("<title>");
+  std::size_t found_end = chunk_string.find("</title>");
+  std::string title = chunk_string.substr(found_start+7, found_end-found_start-7);
+  std::cout << found_start << std::endl;
+  std::cout << found_end << std::endl;
+  std::cout << title << std::endl;;*/
 
-  std::cout << "The following matches and submatches were found:" << std::endl;
+  int found_begin, found_end;
 
-  while (boost::regex_search (s,m,e)) {
-    for (auto x:m) std::cout << x << "\n";
+  found_begin = chunk_string.find("<title>");
+  found_end = chunk_string.find("</title>");
+  while(found_begin != std::string::npos && found_end != std::string::npos){
+
+    std::string new_title = chunk_string.substr(found_begin+7, found_end-found_begin-7);
+    std::cout << "new title: " << new_title << std::endl;
+    std::cout << found_begin - 1 << std::endl;
+    std::string prefix = chunk_string.substr(0, std::max(0, found_begin - 1));
+    std::cout << "prefix: " << prefix << std::endl;
+
+
+    chunk_string = chunk_string.substr(found_end+8);
+    std::cout << "new search string: " << chunk_string << std::endl;
     std::cout << std::endl;
-    s = m.suffix().str();
+    found_begin = chunk_string.find("<title>");
+    found_end = chunk_string.find("</title>");
   }
 
 }
