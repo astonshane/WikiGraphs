@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
 
   // Open up the wikipedia xml file
   MPI_File infile;
-  MPI_File_open(MPI_COMM_WORLD, g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
+  MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
   parse_file(&infile);
