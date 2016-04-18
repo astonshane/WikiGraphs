@@ -73,7 +73,7 @@ void parse_file(MPI_File *infile){
   printf("Rank %d ==> start point: %lld\n", g_my_rank, offset);
 
   // the regex to find a tile in the file
-  std::regex title_regex("<title>(.+)</title>");
+  std::regex title_regex("<title[^>]*>([^<]+)</title>");
 
   // declare some variables
   char * chunk;
@@ -92,7 +92,7 @@ void parse_file(MPI_File *infile){
     std::string chunk_string(chunk);
     // free the allocated space
     free(chunk);
-    std::cout << "reading" << std::endl;
+    //std::cout << "reading" << std::endl;
     //std::cout << chunk_string << std::endl;
     std::smatch title_match;
     // keep looping while there is another title in the the current chunk
@@ -147,11 +147,10 @@ void find_links(std::string section, std::string current_title, LinkMap &links){
 }
 
 void regex_test(){
-  //std::regex link_regex("\\[\\[(.+)\\]\\]");
 
-  std::string s ("this [[subject]] has a submarine as [[a]] subsequence");
+  std::string s ("this <title>abc test def</title> has a submarine as <title>another title</title> subsequence");
   std::smatch m;
-  std::regex e ("\\[\\[([^ ]*)\\]\\]");   // matches words beginning by "sub"
+  std::regex e ("<title[^>]*>([^<]+)</title>", std::regex::extended);   // matches words beginning by "sub"
 
   std::cout << "The following matches and submatches were found:" << std::endl;
 
