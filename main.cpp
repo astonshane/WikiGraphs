@@ -81,10 +81,7 @@ void parse_file(MPI_File *infile){
   LinkMap links;
 
   // keep going until the offset is in the next ranks group
-  int count = 0;
-  while (offset < stopping_point && links.size() < 1000){
-    std::cout << count << std::endl;
-    count ++;
+  while (offset < stopping_point && links.size() < 100){
     // allocate a chunk to read in from the file
     chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
     // read it in
@@ -110,6 +107,7 @@ void parse_file(MPI_File *infile){
       links[current_title] = std::set<std::string>();
 
       //printf("title %lu: %s\n", links.size(), current_title.c_str());
+      //std::cout << title_match[0] << std::endl;
 
       // set the chunk_string to be everything after the title
       chunk_string = title_match.suffix();
@@ -121,19 +119,20 @@ void parse_file(MPI_File *infile){
   }
 
   //output the contents of the links map after parsing
-  /*for (const auto &key : links) {
-    std::cout << g_my_rank << "  " << key.first << "  " << key.second.size() << std::endl;
-    for (const auto &val: key.second){
+  std::cout << links.size() << std::endl;
+  for (const auto &key : links) {
+    std::cout << key.first << "  " << key.second.size() << std::endl;
+    /*for (const auto &val: key.second){
       std::cout << "    " << val << std::endl;
-    }
-  }*/
+    }*/
+  }
 
 }
 
 void find_links(std::string section, std::string current_title, LinkMap &links){
   //links[current_title].push_back("test");
   //std::cout << section << std::endl;
-  std::regex link_regex("\\[\\[([^ ]*)\\]\\]");
+  std::regex link_regex("\\[\\[([^\\[\\]]*)\\]\\]");
   std::smatch link_match;
   while (std::regex_search(section, link_match, link_regex)){
     std::ssub_match sub_match = link_match[1];
