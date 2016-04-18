@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <mpi.h>
+#include <boost/regex.hpp>
 #include <regex>
 #include <iostream>
 #include <string>
@@ -73,7 +74,7 @@ void parse_file(MPI_File *infile){
   printf("Rank %d ==> start point: %lld\n", g_my_rank, offset);
 
   // the regex to find a tile in the file
-  std::regex title_regex("<title[^>]*>([^<]+)</title>");
+  boost::regex title_regex("<title[^>]*>([^<]+)</title>");
 
   // declare some variables
   char * chunk;
@@ -94,9 +95,9 @@ void parse_file(MPI_File *infile){
     free(chunk);
     //std::cout << "reading" << std::endl;
     //std::cout << chunk_string << std::endl;
-    std::smatch title_match;
+    boost::smatch title_match;
     // keep looping while there is another title in the the current chunk
-    while (std::regex_search(chunk_string, title_match, title_regex)){
+    while (boost::regex_search(chunk_string, title_match, title_regex)){
       // if we've already found at least one title, search the first part of the chunk for any links
       if (current_title != ""){
         find_links(title_match.prefix(), current_title, links);
@@ -134,10 +135,10 @@ void parse_file(MPI_File *infile){
 void find_links(std::string section, std::string current_title, LinkMap &links){
   //links[current_title].push_back("test");
   //std::cout << section << std::endl;
-  std::regex link_regex("\\[\\[([^\\[\\]]*)\\]\\]");
-  std::smatch link_match;
-  while (std::regex_search(section, link_match, link_regex)){
-    std::ssub_match sub_match = link_match[1];
+  boost::regex link_regex("\\[\\[([^\\[\\]]*)\\]\\]");
+  boost::smatch link_match;
+  while (boost::regex_search(section, link_match, link_regex)){
+    boost::ssub_match sub_match = link_match[1];
     std::string piece = sub_match.str();
     //std::cout << piece << '\n';
     links[current_title].insert(piece);
@@ -149,12 +150,12 @@ void find_links(std::string section, std::string current_title, LinkMap &links){
 void regex_test(){
 
   std::string s ("this <title>abc test def</title> has a submarine as <title>another title</title> subsequence");
-  std::smatch m;
-  std::regex e ("<title[^>]*>([^<]+)</title>", std::regex::extended);   // matches words beginning by "sub"
+  boost::smatch m;
+  boost::regex e ("<title[^>]*>([^<]+)</title>");   // matches words beginning by "sub"
 
   std::cout << "The following matches and submatches were found:" << std::endl;
 
-  while (std::regex_search (s,m,e)) {
+  while (boost::regex_search (s,m,e)) {
     for (auto x:m) std::cout << x << "\n";
     std::cout << std::endl;
     s = m.suffix().str();
