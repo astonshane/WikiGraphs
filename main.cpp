@@ -59,7 +59,7 @@ void parse_file(MPI_File *infile){
 
   // the size of each chunk that will be read in at a time
   //  TODO: find an optimal setting for this so that we aren't producing too many read reqeusts
-  int chunk_size = 1000000;
+  int chunk_size = 1000;
   //get size of the chunk this rank will handle
   long long int max_size = filesize / g_world_size;
   // where this rank will stop reading the file (aka where the next rank will start reading)
@@ -92,7 +92,8 @@ void parse_file(MPI_File *infile){
     std::string chunk_string(chunk);
     // free the allocated space
     free(chunk);
-
+    std::cout << "reading" << std::endl;
+    //std::cout << chunk_string << std::endl;
     std::smatch title_match;
     // keep looping while there is another title in the the current chunk
     while (std::regex_search(chunk_string, title_match, title_regex)){
@@ -106,15 +107,16 @@ void parse_file(MPI_File *infile){
       // initilize the new title's spot in the links map with an empty set
       links[current_title] = std::set<std::string>();
 
-      //printf("title %lu: %s\n", links.size(), current_title.c_str());
+      printf("title %lu: %s\n", links.size(), current_title.c_str());
       //std::cout << title_match[0] << std::endl;
 
       // set the chunk_string to be everything after the title
       chunk_string = title_match.suffix();
     }
     // do one last search through the remainder of the chunk for any links
-    find_links(chunk_string, current_title, links);
-
+    if (current_title != ""){
+      find_links(chunk_string, current_title, links);
+    }
     offset += chunk_size;
   }
 
