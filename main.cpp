@@ -95,7 +95,7 @@ void parse_file(MPI_File *infile){
     found_end = chunk_string.find("</title>");
     while(found_begin != std::string::npos && found_end != std::string::npos){
       if (current_title != ""){
-        std::string prefix = chunk_string.substr(0, std::max(0, found_begin - 1));
+        std::string prefix = chunk_string.substr(0, std::max((unsigned int)0, found_begin - 1));
         find_links(prefix, current_title, links);
       }
 
