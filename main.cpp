@@ -1,7 +1,5 @@
 #include <stdio.h>
 #include <mpi.h>
-#include <boost/regex.hpp>
-#include <regex>
 #include <iostream>
 #include <string>
 #include <map>
@@ -37,10 +35,10 @@ int main(int argc, char** argv) {
   MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
-  //parse_file(&infile);
+  parse_file(&infile);
 
   if (g_my_rank == 0){
-    regex_test();
+    //regex_test();
   }
 
   // Close the file
@@ -73,9 +71,6 @@ void parse_file(MPI_File *infile){
 
   printf("Rank %d ==> start point: %lld\n", g_my_rank, offset);
 
-  // the regex to find a tile in the file
-  boost::regex title_regex("<title[^>]*>([^<]+)</title>");
-
   // declare some variables
   char * chunk;
   std::string current_title = "";
@@ -93,70 +88,65 @@ void parse_file(MPI_File *infile){
     std::string chunk_string(chunk);
     // free the allocated space
     free(chunk);
-    //std::cout << "reading" << std::endl;
-    //std::cout << chunk_string << std::endl;
-    boost::smatch title_match;
-    // keep looping while there is another title in the the current chunk
-    while (boost::regex_search(chunk_string, title_match, title_regex)){
-      // if we've already found at least one title, search the first part of the chunk for any links
+
+    int found_begin, found_end;
+
+    found_begin = chunk_string.find("<title>");
+    found_end = chunk_string.find("</title>");
+    while(found_begin != std::string::npos && found_end != std::string::npos){
       if (current_title != ""){
-        find_links(title_match.prefix(), current_title, links);
+        std::string prefix = chunk_string.substr(0, std::max(0, found_begin - 1));
+        find_links(prefix, current_title, links);
       }
 
-      // overwrite current_title with the new one
-      current_title = title_match[1].str();
-      // initilize the new title's spot in the links map with an empty set
+
+      current_title =  chunk_string.substr(found_begin+7, found_end-found_begin-7);
       links[current_title] = std::set<std::string>();
 
-      printf("title %lu: %s\n", links.size(), current_title.c_str());
-      //std::cout << title_match[0] << std::endl;
-
-      // set the chunk_string to be everything after the title
-      chunk_string = title_match.suffix();
+      chunk_string = chunk_string.substr(found_end+8);
+      found_begin = chunk_string.find("<title>");
+      found_end = chunk_string.find("</title>");
     }
-    // do one last search through the remainder of the chunk for any links
     if (current_title != ""){
       find_links(chunk_string, current_title, links);
     }
+
     offset += chunk_size;
   }
+
 
   //output the contents of the links map after parsing
   std::cout << links.size() << std::endl;
   for (const auto &key : links) {
     std::cout << key.first << "  " << key.second.size() << std::endl;
-    /*for (const auto &val: key.second){
+    for (const auto &val: key.second){
       std::cout << "    " << val << std::endl;
-    }*/
+    }
   }
 
 }
 
 void find_links(std::string section, std::string current_title, LinkMap &links){
-  //links[current_title].push_back("test");
-  //std::cout << section << std::endl;
-  boost::regex link_regex("\\[\\[([^\\[\\]]*)\\]\\]");
-  boost::smatch link_match;
-  while (boost::regex_search(section, link_match, link_regex)){
-    boost::ssub_match sub_match = link_match[1];
-    std::string piece = sub_match.str();
-    //std::cout << piece << '\n';
-    links[current_title].insert(piece);
-    //std::cout << current_title << " > " << piece << std::endl;
-    section = link_match.suffix().str();
+  int found_begin, found_end;
+
+  found_begin = section.find("[[");
+  found_end = section.find("]]");
+  while(found_begin != std::string::npos && found_end != std::string::npos){
+    if (found_end > found_begin){
+      std::string link = section.substr(found_begin+2, found_end - found_begin - 2);
+      if (link.substr(0, 5) != "File:" && link.substr(0, 6) != "Image:"){
+        links[current_title].insert(link);
+      }
+    }
+    section = section.substr(found_end+2);
+    found_begin = section.find("[[");
+    found_end = section.find("]]");
   }
 }
 
 void regex_test(){
 
   std::string chunk_string ("this <title>abc test def</title><title>banana</title>has a submarine as <title>another title</title> subsequence");
-  /*std::cout << chunk_string << std::endl;
-  std::size_t found_start = chunk_string.find("<title>");
-  std::size_t found_end = chunk_string.find("</title>");
-  std::string title = chunk_string.substr(found_start+7, found_end-found_start-7);
-  std::cout << found_start << std::endl;
-  std::cout << found_end << std::endl;
-  std::cout << title << std::endl;;*/
 
   int found_begin, found_end;
 
