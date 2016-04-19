@@ -77,7 +77,7 @@ void parse_file(MPI_File *infile){
   LinkMap links;
 
   // keep going until the offset is in the next ranks group
-  while (offset < stopping_point && links.size() < 100){
+  while (offset < stopping_point && links.size() < 10000){
     // allocate a chunk to read in from the file
     chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
     // read it in
@@ -88,22 +88,27 @@ void parse_file(MPI_File *infile){
     std::string chunk_string(chunk);
     // free the allocated space
     free(chunk);
+    
 
     unsigned int found_begin, found_end;
 
     found_begin = chunk_string.find("<title>");
     found_end = chunk_string.find("</title>");
-    while(found_begin != std::string::npos && found_end != std::string::npos){
+    while(found_begin < chunk_string.size() && found_end < chunk_string.size()){
+      if (found_end < found_begin){
+	chunk_string = chunk_string.substr(found_end + 7);
+        found_begin = chunk_string.find("<title>");
+        found_end = chunk_string.find("</title>");
+        continue;
+      }
       if (current_title != ""){
         std::string prefix = chunk_string.substr(0, std::max((unsigned int)0, found_begin - 1));
         find_links(prefix, current_title, links);
       }
 
-
       current_title =  chunk_string.substr(found_begin+7, found_end-found_begin-7);
       links[current_title] = std::set<std::string>();
-
-      chunk_string = chunk_string.substr(found_end+8);
+      chunk_string = chunk_string.substr(found_end+7);
       found_begin = chunk_string.find("<title>");
       found_end = chunk_string.find("</title>");
     }
@@ -131,7 +136,7 @@ void find_links(std::string section, std::string current_title, LinkMap &links){
 
   found_begin = section.find("[[");
   found_end = section.find("]]");
-  while(found_begin != std::string::npos && found_end != std::string::npos){
+  while(found_begin < section.size() && found_end < section.size()){
     if (found_end > found_begin){
       std::string link = section.substr(found_begin+2, found_end - found_begin - 2);
       if (link.substr(0, 5) != "File:" && link.substr(0, 6) != "Image:"){
@@ -148,7 +153,7 @@ void regex_test(){
 
   std::string chunk_string ("this <title>abc test def</title><title>banana</title>has a submarine as <title>another title</title> subsequence");
 
-  int found_begin, found_end;
+  unsigned int found_begin, found_end;
 
   found_begin = chunk_string.find("<title>");
   found_end = chunk_string.find("</title>");
@@ -157,7 +162,7 @@ void regex_test(){
     std::string new_title = chunk_string.substr(found_begin+7, found_end-found_begin-7);
     std::cout << "new title: " << new_title << std::endl;
     std::cout << found_begin - 1 << std::endl;
-    std::string prefix = chunk_string.substr(0, std::max(0, found_begin - 1));
+    std::string prefix = chunk_string.substr(0, std::max((unsigned int)0, found_begin - 1));
     std::cout << "prefix: " << prefix << std::endl;
 
 
