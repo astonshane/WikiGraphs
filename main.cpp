@@ -88,34 +88,41 @@ void parse_file(MPI_File *infile){
     std::string chunk_string(chunk);
     // free the allocated space
     free(chunk);
-    
 
     unsigned int found_begin, found_end;
 
+    // find the first title block
     found_begin = chunk_string.find("<title>");
     found_end = chunk_string.find("</title>");
     while(found_begin < chunk_string.size() && found_end < chunk_string.size()){
+      // we started this chunk in the middle of a title block, just move on (the previous node will take care of it)
       if (found_end < found_begin){
-	chunk_string = chunk_string.substr(found_end + 7);
+	      chunk_string = chunk_string.substr(found_end + 7);
         found_begin = chunk_string.find("<title>");
         found_end = chunk_string.find("</title>");
         continue;
       }
+      // get any links that should go to the previous title
       if (current_title != ""){
         std::string prefix = chunk_string.substr(0, std::max((unsigned int)0, found_begin - 1));
         find_links(prefix, current_title, links);
       }
 
+      // pull out the new title
       current_title =  chunk_string.substr(found_begin+7, found_end-found_begin-7);
       links[current_title] = std::set<std::string>();
+
+      // reset the string and look again
       chunk_string = chunk_string.substr(found_end+7);
       found_begin = chunk_string.find("<title>");
       found_end = chunk_string.find("</title>");
     }
+    // get the links for this title
     if (current_title != ""){
       find_links(chunk_string, current_title, links);
     }
 
+    // move the offset to read the next chunk
     offset += chunk_size;
   }
 
@@ -134,15 +141,19 @@ void parse_file(MPI_File *infile){
 void find_links(std::string section, std::string current_title, LinkMap &links){
   unsigned int found_begin, found_end;
 
+  //find the first link
   found_begin = section.find("[[");
   found_end = section.find("]]");
   while(found_begin < section.size() && found_end < section.size()){
     if (found_end > found_begin){
+      // pull out the link
       std::string link = section.substr(found_begin+2, found_end - found_begin - 2);
+      // throw out links to files or images
       if (link.substr(0, 5) != "File:" && link.substr(0, 6) != "Image:"){
         links[current_title].insert(link);
       }
     }
+    // reset the string and look again
     section = section.substr(found_end+2);
     found_begin = section.find("[[");
     found_end = section.find("]]");
@@ -157,7 +168,7 @@ void regex_test(){
 
   found_begin = chunk_string.find("<title>");
   found_end = chunk_string.find("</title>");
-  while(found_begin != std::string::npos && found_end != std::string::npos){
+  while(found_begin < chunk_string.size() && found_end != chunk_string.size()){
 
     std::string new_title = chunk_string.substr(found_begin+7, found_end-found_begin-7);
     std::cout << "new title: " << new_title << std::endl;
