@@ -89,7 +89,7 @@ void parse_file(MPI_File *infile){
     // free the allocated space
     free(chunk);
 
-    int found_begin, found_end;
+    unsigned int found_begin, found_end;
 
     found_begin = chunk_string.find("<title>");
     found_end = chunk_string.find("</title>");
@@ -127,7 +127,7 @@ void parse_file(MPI_File *infile){
 }
 
 void find_links(std::string section, std::string current_title, LinkMap &links){
-  int found_begin, found_end;
+  unsigned int found_begin, found_end;
 
   found_begin = section.find("[[");
   found_end = section.find("]]");
