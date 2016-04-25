@@ -10,6 +10,7 @@ typedef std::map<std::string, std::set<std::string>> LinkMap;
 
 int g_world_size;
 int g_my_rank;
+int g_max_titles;
 std::string g_filename = "enwiki-20160305-pages-articles.xml";
 
 void parse_file(MPI_File *infile);
@@ -19,13 +20,20 @@ void find_links(std::string section, std::string current_title, LinkMap &links);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
-  MPI_Init(NULL, NULL);
+  MPI_Init(&argc, &argv);
 
   // Get the number of processes
   MPI_Comm_size(MPI_COMM_WORLD, &g_world_size);
 
   // Get the rank of the process
   MPI_Comm_rank(MPI_COMM_WORLD, &g_my_rank);
+  if (argc != 2){
+    printf("ERROR: incorrect number of arguments: [number of titles per rank (-1 for all)]\n");
+    MPI_Finalize();
+    return 1;
+  }else{
+    g_max_titles = atoi(argv[1]);
+  }
 
   // Print off a hello world message
   printf("Hello world from rank %d out of %d processors\n", g_my_rank, g_world_size);
@@ -77,7 +85,7 @@ void parse_file(MPI_File *infile){
   LinkMap links;
 
   // keep going until the offset is in the next ranks group
-  while (offset < stopping_point && links.size() < 10000){
+  while (offset < stopping_point && (links.size() < g_max_titles || g_max_titles == -1)){
     // allocate a chunk to read in from the file
     chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
     // read it in
