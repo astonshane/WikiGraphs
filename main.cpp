@@ -47,12 +47,14 @@ int main(int argc, char** argv) {
   //MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
-  //parse_file();
+  parse_file();
   if (g_mpi_rank == 0){
-    parse_file();
-    printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+    //parse_file();
+    //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+    //printf("final size of adj_list: %lu\n", g_adj_list.size());
   }
-  //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+  printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+  printf("final size of adj_list: %lu\n", g_adj_list.size());
 
   // Close the file
   //MPI_File_close(&infile);
@@ -125,7 +127,7 @@ void parse_file(){
   chunk_string = chunk_string.substr(starting_pos);
 
   int current_id = starting_id;
-  while(current_id < final_id && global_count < 200){
+  while(current_id < final_id /*&& global_count < 100000*/){
     int next_id = current_id + 1;
     if (next_id == final_id){
       find_friends(current_id, chunk_string);
@@ -171,9 +173,20 @@ void find_friends(int id, std::string chunk){
     found = chunk.find("\n");
   }
   if (chunk != "notfound" && chunk != "private" && chunk != ""){
-    printf("%d:  %s\n", id, chunk.c_str());
+    //printf("%d:  %s\n", id, chunk.c_str());
     g_adj_list[id] = std::set<int>();
 
+    found = chunk.find(',');
+    while (found < chunk.size()){
+      std::string before = chunk.substr(0, found);
+
+      g_adj_list[id].insert(atoi(before.c_str()));
+
+      chunk = chunk.substr(found+1);
+      found = chunk.find(',');
+    }
+    g_adj_list[id].insert(atoi(chunk.c_str()));
+    printf("%d: num_friends: %lu\n", id, g_adj_list[id].size());
   }
 }
 
