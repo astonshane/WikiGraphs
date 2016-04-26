@@ -46,9 +46,9 @@ int main(int argc, char** argv) {
   //MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
-  parse_file();
+  //parse_file();
   if (g_mpi_rank == 0){
-    //parse_file();
+    parse_file();
   }
   printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
 
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 
 void parse_file(){
   printf("parsing the file...\n");
-  char filename[50];
+  char filename[100];
   std::string padding;
   if (g_file < 10){
     padding = "00";
@@ -74,10 +74,11 @@ void parse_file(){
   }
 
   sprintf(filename, "data/friends-%s%d______.txt", padding.c_str(), g_file);
+  //sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/friendster_data/friends-%s%d______.txt", padding.c_str(), g_file);
   printf("rank: %d  %s\n", g_mpi_rank, filename);
 
   MPI_File infile;
-  MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
+  MPI_File_open(MPI_COMM_SELF, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
   MPI_Offset filesize = 0;
   MPI_File_get_size(infile, &filesize);
 
@@ -111,7 +112,10 @@ void parse_file(){
     free(chunk);
 
     //see if the id we want is in there
-    starting_pos = chunk_string.find(std::to_string(starting_id));
+    char id_str[10];
+    sprintf(id_str, "%d", starting_id);
+    starting_pos = chunk_string.find(id_str);
+    free(id_str);
     if (starting_pos < chunk_string.size()){
       found = true;
     }
@@ -127,7 +131,9 @@ void parse_file(){
     }else{
       int found_next;
       while(true){
-        found_next = chunk_string.find(std::to_string(next_id));
+	char next_id_str[10];
+	sprintf(next_id_str, "%d", next_id);
+        found_next = chunk_string.find(next_id_str);
         if (found_next < chunk_string.size()){
           break;
         }else{
