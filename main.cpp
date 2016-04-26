@@ -15,6 +15,8 @@ unsigned int g_file;
 unsigned int g_user_start;
 unsigned int g_num_users;
 
+int global_count = 0;
+
 void set_positions();
 
 void parse_file();
@@ -48,6 +50,8 @@ int main(int argc, char** argv) {
   if (g_mpi_rank == 0){
     //parse_file();
   }
+  printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+
   // Close the file
   //MPI_File_close(&infile);
 
@@ -148,7 +152,8 @@ void parse_file(){
 }
 
 void find_friends(int id, std::string chunk){
-  printf("%d    %s\n", id, chunk.c_str());
+  //printf("%d    %s\n", id, chunk.c_str());
+  global_count += 1;
 }
 
 void set_positions(){
