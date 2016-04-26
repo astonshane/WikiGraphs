@@ -14,6 +14,7 @@ unsigned int g_total_files = 125;
 unsigned int g_file;
 unsigned int g_user_start;
 unsigned int g_num_users;
+std::map<int, std::set<int>> g_adj_list;
 
 int global_count = 0;
 
@@ -49,8 +50,9 @@ int main(int argc, char** argv) {
   //parse_file();
   if (g_mpi_rank == 0){
     parse_file();
+    printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
   }
-  printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+  //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
 
   // Close the file
   //MPI_File_close(&infile);
@@ -115,7 +117,6 @@ void parse_file(){
     char id_str[10];
     sprintf(id_str, "%d", starting_id);
     starting_pos = chunk_string.find(id_str);
-    free(id_str);
     if (starting_pos < chunk_string.size()){
       found = true;
     }
@@ -124,15 +125,15 @@ void parse_file(){
   chunk_string = chunk_string.substr(starting_pos);
 
   int current_id = starting_id;
-  while(current_id < final_id){
+  while(current_id < final_id && global_count < 200){
     int next_id = current_id + 1;
     if (next_id == final_id){
       find_friends(current_id, chunk_string);
     }else{
       int found_next;
       while(true){
-	char next_id_str[10];
-	sprintf(next_id_str, "%d", next_id);
+        char next_id_str[10];
+        sprintf(next_id_str, "%d", next_id);
         found_next = chunk_string.find(next_id_str);
         if (found_next < chunk_string.size()){
           break;
@@ -150,6 +151,7 @@ void parse_file(){
       }
       std::string current_chunk = chunk_string.substr(0, found_next);
       find_friends(current_id, current_chunk);
+      chunk_string = chunk_string.substr(found_next);
     }
     current_id += 1;
   }
@@ -158,8 +160,21 @@ void parse_file(){
 }
 
 void find_friends(int id, std::string chunk){
-  //printf("%d    %s\n", id, chunk.c_str());
+  //printf("%d %s\n", id, chunk.c_str());
   global_count += 1;
+  int found = chunk.find(':');
+  chunk = chunk.substr(found+1);
+
+  found = chunk.find("\n");
+  while (found < chunk.size()){
+    chunk = chunk.substr(0, found);
+    found = chunk.find("\n");
+  }
+  if (chunk != "notfound" && chunk != "private" && chunk != ""){
+    printf("%d:  %s\n", id, chunk.c_str());
+    g_adj_list[id] = std::set<int>();
+
+  }
 }
 
 void set_positions(){
