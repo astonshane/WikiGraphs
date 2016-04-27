@@ -10,7 +10,7 @@ typedef std::map<std::string, std::set<std::string>> LinkMap;
 
 int g_world_size;
 int g_mpi_rank;
-unsigned int g_total_files = 125;
+int g_total_files = 125;
 unsigned int g_file;
 unsigned int g_user_start;
 unsigned int g_num_users;
@@ -47,14 +47,14 @@ int main(int argc, char** argv) {
   //MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
-  parse_file();
+  //parse_file();
   if (g_mpi_rank == 0){
-    //parse_file();
+    parse_file();
     //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
     //printf("final size of adj_list: %lu\n", g_adj_list.size());
   }
   printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
-  printf("final size of adj_list: %lu\n", g_adj_list.size());
+  printf("Rank %d: final size of adj_list: %lu\n", g_mpi_rank, g_adj_list.size());
 
   // Close the file
   //MPI_File_close(&infile);
@@ -119,7 +119,7 @@ void parse_file(){
     char id_str[10];
     sprintf(id_str, "%d", starting_id);
     starting_pos = chunk_string.find(id_str);
-    if (starting_pos < chunk_string.size()){
+    if ((long unsigned int)starting_pos < chunk_string.size()){
       found = true;
     }
   }
@@ -137,7 +137,7 @@ void parse_file(){
         char next_id_str[10];
         sprintf(next_id_str, "%d", next_id);
         found_next = chunk_string.find(next_id_str);
-        if (found_next < chunk_string.size()){
+        if ((long unsigned int)found_next < chunk_string.size()){
           break;
         }else{
           chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
@@ -168,7 +168,7 @@ void find_friends(int id, std::string chunk){
   chunk = chunk.substr(found+1);
 
   found = chunk.find("\n");
-  while (found < chunk.size()){
+  while ((long unsigned int)found < chunk.size()){
     chunk = chunk.substr(0, found);
     found = chunk.find("\n");
   }
@@ -177,7 +177,7 @@ void find_friends(int id, std::string chunk){
     g_adj_list[id] = std::set<int>();
 
     found = chunk.find(',');
-    while (found < chunk.size()){
+    while ((long unsigned int)found < chunk.size()){
       std::string before = chunk.substr(0, found);
 
       g_adj_list[id].insert(atoi(before.c_str()));
@@ -186,7 +186,7 @@ void find_friends(int id, std::string chunk){
       found = chunk.find(',');
     }
     g_adj_list[id].insert(atoi(chunk.c_str()));
-    printf("%d: num_friends: %lu\n", id, g_adj_list[id].size());
+    //printf("%d: num_friends: %lu\n", id, g_adj_list[id].size());
   }
 }
 
