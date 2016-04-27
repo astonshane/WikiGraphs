@@ -15,10 +15,18 @@ unsigned int g_file;
 unsigned int g_user_start;
 unsigned int g_num_users;
 std::map<int, std::set<int>> g_adj_list;
+std::map<int, int> g_rank_max;
 
 int global_count = 0;
 
 void set_positions();
+
+void get_maxes();
+int id_to_rank(int id);
+
+void remove_duplicates();
+void get_responses(int &msg_count); // get the responses to my requests for info
+void send_responses(); // send the responses for requests of my info
 
 void parse_file();
 
@@ -47,17 +55,17 @@ int main(int argc, char** argv) {
   //MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
+  //get_maxes();
   //parse_file();
   if (g_mpi_rank == 0){
+    get_maxes();
     parse_file();
+    remove_duplicates();
     //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
     //printf("final size of adj_list: %lu\n", g_adj_list.size());
   }
-  printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
-  printf("Rank %d: final size of adj_list: %lu\n", g_mpi_rank, g_adj_list.size());
-
-  // Close the file
-  //MPI_File_close(&infile);
+  //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
+  //printf("Rank %d: final size of adj_list: %lu\n", g_mpi_rank, g_adj_list.size());
 
   // Finalize the MPI environment.
   MPI_Finalize();
@@ -218,4 +226,111 @@ void set_positions(){
     }
   }
   //printf("Rank %d:      g_file: %d       g_user_start: %d     g_num_users: %d\n", g_mpi_rank, g_file, g_user_start, g_num_users);
+}
+
+
+
+// get the max id of each rank
+// modify this to not just use one rank, AND to store the max value for each rank
+void get_maxes(){
+  printf("getting maxes!\n");
+  int count = 0;
+  for (int f=0; f<g_total_files; f++) {
+    int ranks_per_file = g_world_size / g_total_files;
+    int extra = g_world_size % g_total_files;
+    if (f < extra){
+      ranks_per_file += 1;
+    }
+    for (int i=0; i<ranks_per_file; i++){
+      g_file = f;
+      g_user_start = (1000000/ranks_per_file)*i;
+      g_num_users = 1000000/ranks_per_file;
+      if (i == ranks_per_file-1){
+        g_num_users += 1000000 - g_num_users*(i+1);
+      }
+      g_rank_max[count] = 1000000*f + g_user_start + g_num_users;
+      count += 1;
+    }
+  }
+}
+
+void remove_duplicates(){
+  int msg_count = 0;
+  for (auto& map_iter: g_adj_list){
+    int key_id = map_iter.first;
+    for (auto& conn_id: map_iter.second){
+      int r1 = id_to_rank(conn_id);
+      int to_send[2];
+      to_send[0] = key_id;
+      to_send[1] = conn_id;
+
+      MPI_Request request;
+      MPI_Isend(to_send, 2, MPI_INT, r1, 0, MPI_COMM_WORLD, &request);
+      msg_count += 1;
+    }
+  }
+  MPI_Barrier( MPI_COMM_WORLD );
+
+  while(msg_count > 0){
+    get_responses(msg_count); // get the responses to my requests for info
+    send_responses(); // send the responses for requests of my info
+  }
+
+}
+
+void get_responses(int &msg_count){
+  MPI_Status status;
+  int flag;
+  MPI_Iprobe(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &flag, &status);
+  while(flag){
+    int source = status.MPI_SOURCE;
+    int to_recv[3];
+    MPI_Request req;
+    MPI_Irecv(to_recv, 3, MPI_INT, source, 1, MPI_COMM_WORLD, &req);
+
+    int key_id = to_recv[0];
+    int conn_id = to_recv[1];
+    int response = to_recv[2];
+
+    if (!response){
+      g_adj_list[key_id].erase(conn_id);
+      if (g_adj_list[key_id].size() == 0){
+        g_adj_list.erase(key_id);
+      }
+    }
+    msg_count -= 1;
+    MPI_Iprobe(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &flag, &status);
+  }
+}
+
+void send_responses(){
+  MPI_Status status;
+  int flag;
+  MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
+  while(flag){
+    int source = status.MPI_SOURCE;
+    int to_recv[3];
+    MPI_Request req;
+    MPI_Irecv(to_recv, 2, MPI_INT, source, 0, MPI_COMM_WORLD, &req);
+    int key_id = to_recv[0];
+    int conn_id = to_recv[1];
+    if (g_adj_list.find(conn_id) != g_adj_list.end() && g_adj_list[conn_id].find(key_id) != g_adj_list[conn_id].end()){
+      to_recv[2] = 1;
+    }else{
+      to_recv[2] = 0;
+    }
+    MPI_Request request;
+    MPI_Isend(to_recv, 3, MPI_INT, source, 1, MPI_COMM_WORLD, &request);
+    MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
+  }
+}
+
+int id_to_rank(int id){
+  for (auto& key : g_rank_max) {
+    //std::cout << kv.first << " has value " << kv.second << std::endl;
+    if (id < key.second){
+      return key.first;
+    }
+  }
+  return -1;
 }
