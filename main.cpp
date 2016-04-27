@@ -55,12 +55,16 @@ int main(int argc, char** argv) {
   //MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
 
   // Parse the file
-  //get_maxes();
-  //parse_file();
+  get_maxes();
+  printf("Rank: %d    finished get_maxes()", g_mpi_rank);
+  parse_file();
+  printf("Rank: %d    finished parse_file()", g_mpi_rank);
+  remove_duplicates();
+  printf("Rank: %d    finished remove_duplicates()", g_mpi_rank);
   if (g_mpi_rank == 0){
-    get_maxes();
-    parse_file();
-    remove_duplicates();
+   // get_maxes();
+   // parse_file();
+   // remove_duplicates();
     //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
     //printf("final size of adj_list: %lu\n", g_adj_list.size());
   }
@@ -85,8 +89,8 @@ void parse_file(){
     padding = "";
   }
 
-  sprintf(filename, "data/friends-%s%d______.txt", padding.c_str(), g_file);
-  //sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/friendster_data/friends-%s%d______.txt", padding.c_str(), g_file);
+  //sprintf(filename, "data/friends-%s%d______.txt", padding.c_str(), g_file);
+  sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/friendster_data/friends-%s%d______.txt", padding.c_str(), g_file);
   printf("rank: %d  %s\n", g_mpi_rank, filename);
 
   MPI_File infile;
@@ -256,9 +260,12 @@ void get_maxes(){
 
 void remove_duplicates(){
   int msg_count = 0;
-  for (auto& map_iter: g_adj_list){
-    int key_id = map_iter.first;
-    for (auto& conn_id: map_iter.second){
+  for (auto map_iter=g_adj_list.begin(); map_iter != g_adj_list.end(); map_iter++){
+    int key_id = map_iter->first;
+    std::set<int> tmp_set = map_iter->second;
+    //for (auto& conn_id: map_iter.second){
+    for (auto set_iter=tmp_set.begin(); set_iter != tmp_set.end(); set_iter++){
+      int conn_id = *set_iter;
       int r1 = id_to_rank(conn_id);
       int to_send[2];
       to_send[0] = key_id;
@@ -326,10 +333,10 @@ void send_responses(){
 }
 
 int id_to_rank(int id){
-  for (auto& key : g_rank_max) {
+  for (auto key = g_rank_max.begin(); key != g_rank_max.end(); key++) {
     //std::cout << kv.first << " has value " << kv.second << std::endl;
-    if (id < key.second){
-      return key.first;
+    if (id < key->second){
+      return key->first;
     }
   }
   return -1;
