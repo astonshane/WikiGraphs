@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
   // Print off a hello world message
   //parse_file();
 
-  if (g_mpi_rank == 1){
+  if (g_mpi_rank == 0){
     parse_file();
     printf("Rank: %d    finished parse_file()\n", g_mpi_rank);
     printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
@@ -98,6 +98,9 @@ void add_to_adjlist(std::string line){
   int tab_pos = line.find("\t");
   int one = atoi(line.substr(0, tab_pos).c_str());
   int two = atoi(line.substr(tab_pos+1).c_str());
+  if (one % 10000 == 0){
+    std::cout << one << std::endl;
+  }
   if (one < g_local_max_id){
     g_adj_list[one].insert(two);
     //printf("(ONE) Adding %d -> %d\n", one, two);
