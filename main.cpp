@@ -1,37 +1,20 @@
 #include <stdio.h>
 #include <mpi.h>
+#include <math.h>
 #include <iostream>
 #include <string>
 #include <map>
 #include <set>
 #include <algorithm>
 
-typedef std::map<std::string, std::set<std::string>> LinkMap;
-
 int g_world_size;
 int g_mpi_rank;
-int g_total_files = 125;
-unsigned int g_file;
-unsigned int g_user_start;
-unsigned int g_num_users;
+int g_global_max_id = 125000000;
+int g_local_max_id;
 std::map<int, std::set<int>> g_adj_list;
-std::map<int, int> g_rank_max;
-
-int global_count = 0;
-
-void set_positions();
-
-void get_maxes();
-int id_to_rank(int id);
-
-void remove_duplicates();
-void get_responses(int &msg_count); // get the responses to my requests for info
-void send_responses(); // send the responses for requests of my info
 
 void parse_file();
-
-void find_friends(int id, std::string chunk);
-
+void add_to_adjlist(std::string line);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
@@ -45,31 +28,15 @@ int main(int argc, char** argv) {
 
 
   // Print off a hello world message
-  //printf("Hello world from rank %d\n", g_mpi_rank);
-  set_positions();
+  //parse_file();
 
-
-
-  // Open up the wikipedia xml file
-  //MPI_File infile;
-  //MPI_File_open(MPI_COMM_WORLD, (char *)g_filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
-
-  // Parse the file
-  get_maxes();
-  printf("Rank: %d    finished get_maxes()", g_mpi_rank);
-  parse_file();
-  printf("Rank: %d    finished parse_file()", g_mpi_rank);
-  remove_duplicates();
-  printf("Rank: %d    finished remove_duplicates()", g_mpi_rank);
-  if (g_mpi_rank == 0){
-   // get_maxes();
-   // parse_file();
-   // remove_duplicates();
-    //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
-    //printf("final size of adj_list: %lu\n", g_adj_list.size());
+  if (g_mpi_rank == 1){
+    parse_file();
+    printf("Rank: %d    finished parse_file()\n", g_mpi_rank);
+    printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
   }
-  //printf("Rank %d: global_count: %d\n", g_mpi_rank, global_count);
-  //printf("Rank %d: final size of adj_list: %lu\n", g_mpi_rank, g_adj_list.size());
+
+
 
   // Finalize the MPI environment.
   MPI_Finalize();
@@ -79,19 +46,13 @@ int main(int argc, char** argv) {
 
 void parse_file(){
   printf("parsing the file...\n");
+  g_local_max_id = ceil((float)g_global_max_id / g_world_size)*(g_mpi_rank+1);
+  printf("maximum id = %d\n", g_local_max_id);
   char filename[100];
-  std::string padding;
-  if (g_file < 10){
-    padding = "00";
-  }else if (g_file < 100) {
-    padding = "0";
-  } else {
-    padding = "";
-  }
 
-  //sprintf(filename, "data/friends-%s%d______.txt", padding.c_str(), g_file);
-  sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/friendster_data/friends-%s%d______.txt", padding.c_str(), g_file);
-  printf("rank: %d  %s\n", g_mpi_rank, filename);
+  sprintf(filename, "com-friendster.ungraph.txt");
+  //sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/friendster_data/friends-%s%d______.txt", padding.c_str(), g_file);
+  //printf("rank: %d  %s\n", g_mpi_rank, filename);
 
   MPI_File infile;
   MPI_File_open(MPI_COMM_SELF, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
@@ -101,243 +62,47 @@ void parse_file(){
   //printf("rank %d: %lld\n", g_mpi_rank, filesize);
   printf("rank %d: opened the file! %lld\n", g_mpi_rank, filesize);
 
-  int starting_id = 1000000*g_file + g_user_start;
-  int final_id = starting_id + g_num_users;
+  char * buffer;
+  std::string chunk = "";
+  unsigned int buffer_size = 1000;
+  MPI_Offset offset = 124; // get rid of the stuff at the top of the file
 
-  printf("rank %d: starting_id: %d final_id: %d\n", g_mpi_rank, starting_id, final_id);
+  while(offset < filesize){
+   buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
+   // read it in
+   MPI_File_read_at(infile, offset, buffer, buffer_size, MPI_CHAR, MPI_STATUS_IGNORE);
+   offset += buffer_size;
+   // end the string
+   buffer[buffer_size] = '\0';
+   std::string new_string(buffer);
+   free(buffer);
+   chunk += new_string;
+   //std::cout << chunk << std::endl;;
 
-  char* chunk;
-  std::string chunk_string = "";
+   int found_newline = chunk.find('\n');
 
-  int chunk_size = 50000;
-  MPI_Offset offset = 0;
 
-  bool found = false;
-  int starting_pos;
-
-  while(!found){
-    //allocate a chunk
-    chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
-    // read it in
-    MPI_File_read_at(infile, offset, chunk, chunk_size, MPI_CHAR, MPI_STATUS_IGNORE);
-    offset += chunk_size;
-    // end the string
-    chunk[chunk_size] = '\0';
-    std::string new_string(chunk);
-    chunk_string = new_string;
-    free(chunk);
-
-    //see if the id we want is in there
-    char id_str[10];
-    sprintf(id_str, "%d", starting_id);
-    starting_pos = chunk_string.find(id_str);
-    if ((long unsigned int)starting_pos < chunk_string.size()){
-      found = true;
-    }
+   while (found_newline < chunk.size()){
+    std::string line = chunk.substr(0, found_newline);
+    add_to_adjlist(line);
+    chunk = chunk.substr(found_newline+1);
+    found_newline = chunk.find('\n');
   }
-
-  chunk_string = chunk_string.substr(starting_pos);
-
-  int current_id = starting_id;
-  while(current_id < final_id /*&& global_count < 100000*/){
-    int next_id = current_id + 1;
-    if (next_id == final_id){
-      find_friends(current_id, chunk_string);
-    }else{
-      int found_next;
-      while(true){
-        char next_id_str[10];
-        sprintf(next_id_str, "%d", next_id);
-        found_next = chunk_string.find(next_id_str);
-        if ((long unsigned int)found_next < chunk_string.size()){
-          break;
-        }else{
-          chunk = (char *)malloc( (chunk_size + 1)*sizeof(char));
-          // read it in
-          MPI_File_read_at(infile, offset, chunk, chunk_size, MPI_CHAR, MPI_STATUS_IGNORE);
-          offset += chunk_size;
-          // end the string
-          chunk[chunk_size] = '\0';
-          std::string new_string(chunk);
-          free(chunk);
-          chunk_string += new_string;
-        }
-      }
-      std::string current_chunk = chunk_string.substr(0, found_next);
-      find_friends(current_id, current_chunk);
-      chunk_string = chunk_string.substr(found_next);
-    }
-    current_id += 1;
-  }
+ }
 
   MPI_File_close(&infile);
 }
 
-void find_friends(int id, std::string chunk){
-  //printf("%d %s\n", id, chunk.c_str());
-  global_count += 1;
-  int found = chunk.find(':');
-  chunk = chunk.substr(found+1);
-
-  found = chunk.find("\n");
-  while ((long unsigned int)found < chunk.size()){
-    chunk = chunk.substr(0, found);
-    found = chunk.find("\n");
+void add_to_adjlist(std::string line){
+  //std::cout << "adding: " << line << " to adj list" << std::endl;
+  int tab_pos = line.find("\t");
+  int one = atoi(line.substr(0, tab_pos).c_str());
+  int two = atoi(line.substr(tab_pos+1).c_str());
+  if (one < g_local_max_id){
+    g_adj_list[one].insert(two);
+    //printf("(ONE) Adding %d -> %d\n", one, two);
+  }else if (two < g_local_max_id){
+    g_adj_list[two].insert(one);
+    //sprintf("(TWO) Adding %d -> %d\n", two, one);
   }
-  if (chunk != "notfound" && chunk != "private" && chunk != ""){
-    //printf("%d:  %s\n", id, chunk.c_str());
-    g_adj_list[id] = std::set<int>();
-
-    found = chunk.find(',');
-    while ((long unsigned int)found < chunk.size()){
-      std::string before = chunk.substr(0, found);
-
-      g_adj_list[id].insert(atoi(before.c_str()));
-
-      chunk = chunk.substr(found+1);
-      found = chunk.find(',');
-    }
-    g_adj_list[id].insert(atoi(chunk.c_str()));
-    //printf("%d: num_friends: %lu\n", id, g_adj_list[id].size());
-  }
-}
-
-void set_positions(){
-  int count = 0;
-  bool found = false;
-  for (int f=0; f<g_total_files; f++) {
-    int ranks_per_file = g_world_size / g_total_files;
-    int extra = g_world_size % g_total_files;
-    if (f < extra){
-      ranks_per_file += 1;
-    }
-    for (int i=0; i<ranks_per_file; i++){
-      if (count == g_mpi_rank){
-        g_file = f;
-        g_user_start = (1000000/ranks_per_file)*i;
-        g_num_users = 1000000/ranks_per_file;
-        if (i == ranks_per_file-1){
-          g_num_users += 1000000 - g_num_users*(i+1);
-        }
-        found = true;
-        break;
-      }else{
-        count += 1;
-      }
-    }
-    if (found){
-      break;
-    }
-  }
-  //printf("Rank %d:      g_file: %d       g_user_start: %d     g_num_users: %d\n", g_mpi_rank, g_file, g_user_start, g_num_users);
-}
-
-
-
-// get the max id of each rank
-// modify this to not just use one rank, AND to store the max value for each rank
-void get_maxes(){
-  printf("getting maxes!\n");
-  int count = 0;
-  for (int f=0; f<g_total_files; f++) {
-    int ranks_per_file = g_world_size / g_total_files;
-    int extra = g_world_size % g_total_files;
-    if (f < extra){
-      ranks_per_file += 1;
-    }
-    for (int i=0; i<ranks_per_file; i++){
-      g_file = f;
-      g_user_start = (1000000/ranks_per_file)*i;
-      g_num_users = 1000000/ranks_per_file;
-      if (i == ranks_per_file-1){
-        g_num_users += 1000000 - g_num_users*(i+1);
-      }
-      g_rank_max[count] = 1000000*f + g_user_start + g_num_users;
-      count += 1;
-    }
-  }
-}
-
-void remove_duplicates(){
-  int msg_count = 0;
-  for (auto map_iter=g_adj_list.begin(); map_iter != g_adj_list.end(); map_iter++){
-    int key_id = map_iter->first;
-    std::set<int> tmp_set = map_iter->second;
-    //for (auto& conn_id: map_iter.second){
-    for (auto set_iter=tmp_set.begin(); set_iter != tmp_set.end(); set_iter++){
-      int conn_id = *set_iter;
-      int r1 = id_to_rank(conn_id);
-      int to_send[2];
-      to_send[0] = key_id;
-      to_send[1] = conn_id;
-
-      MPI_Request request;
-      MPI_Isend(to_send, 2, MPI_INT, r1, 0, MPI_COMM_WORLD, &request);
-      msg_count += 1;
-    }
-  }
-  MPI_Barrier( MPI_COMM_WORLD );
-
-  while(msg_count > 0){
-    get_responses(msg_count); // get the responses to my requests for info
-    send_responses(); // send the responses for requests of my info
-  }
-
-}
-
-void get_responses(int &msg_count){
-  MPI_Status status;
-  int flag;
-  MPI_Iprobe(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &flag, &status);
-  while(flag){
-    int source = status.MPI_SOURCE;
-    int to_recv[3];
-    MPI_Request req;
-    MPI_Irecv(to_recv, 3, MPI_INT, source, 1, MPI_COMM_WORLD, &req);
-
-    int key_id = to_recv[0];
-    int conn_id = to_recv[1];
-    int response = to_recv[2];
-
-    if (!response){
-      g_adj_list[key_id].erase(conn_id);
-      if (g_adj_list[key_id].size() == 0){
-        g_adj_list.erase(key_id);
-      }
-    }
-    msg_count -= 1;
-    MPI_Iprobe(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &flag, &status);
-  }
-}
-
-void send_responses(){
-  MPI_Status status;
-  int flag;
-  MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-  while(flag){
-    int source = status.MPI_SOURCE;
-    int to_recv[3];
-    MPI_Request req;
-    MPI_Irecv(to_recv, 2, MPI_INT, source, 0, MPI_COMM_WORLD, &req);
-    int key_id = to_recv[0];
-    int conn_id = to_recv[1];
-    if (g_adj_list.find(conn_id) != g_adj_list.end() && g_adj_list[conn_id].find(key_id) != g_adj_list[conn_id].end()){
-      to_recv[2] = 1;
-    }else{
-      to_recv[2] = 0;
-    }
-    MPI_Request request;
-    MPI_Isend(to_recv, 3, MPI_INT, source, 1, MPI_COMM_WORLD, &request);
-    MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-  }
-}
-
-int id_to_rank(int id){
-  for (auto key = g_rank_max.begin(); key != g_rank_max.end(); key++) {
-    //std::cout << kv.first << " has value " << kv.second << std::endl;
-    if (id < key->second){
-      return key->first;
-    }
-  }
-  return -1;
 }

@@ -31,3 +31,4 @@
 # wikipedia xml files:
 *.xml
 *.txt
+*.gz
