@@ -7,75 +7,94 @@
 #include <algorithm>
 #include <vector>
 #include <list>
-using namespace std;
 
-int MTemp[2][7] = 	//adjacency matrix
-	{
-		// {0,1,1,1,0,0,0},
-		// {1,0,1,0,0,0,0},
-		{1,1,0,1,1,0,0},
-		{1,0,1,0,1,0,0}//,
-		// {0,0,1,1,0,0,0},
-		// {0,0,0,0,0,0,1},
-		// {0,0,0,0,0,1,0}
-	};
-vector<vector<int> > connectedComponents;
+std::map<int, std::set<int> > g_adj_list;
+//sample testing adj_list
+int foo1[] = {2,3,4};
+int foo2[] = {1,3};
+int foo3[] = {1,2,4,5};
+int foo4[] = {1,3,5};
+int foo5[] = {3,4};
+int foo6[] = {7};
+int foo7[] = {6};
 
-int vertices = 7;
-int *visited = new int[vertices];
-int minRankIndex = 2;
-int maxRankIndex = 3;
-int rows = maxRankIndex-minRankIndex+1;
+std::set<int> mySet1(foo1, foo1+3);
+std::set<int> mySet2(foo2, foo2+2);
+std::set<int> mySet3(foo3, foo3+4);
+std::set<int> mySet4(foo4, foo4+3);
+std::set<int> mySet5(foo5, foo5+2);
+std::set<int> mySet6(foo6, foo6+1);
+std::set<int> mySet7(foo7, foo7+1);
+
+std::map<int, bool> visited;
+std::vector<std::vector<int> > connectedComponents;
+
+
+// int vertices = 7;
+// int *visited = new int[vertices];
+// int minRankIndex = 0;
+// int maxRankIndex = 2;
+// int rows = maxRankIndex-minRankIndex+1;
 
 
 void bfs(int u, int ccCounter) {
-	list<int> queue;
+	std::list<int> queue;
 	visited[u] = true;
 	queue.push_back(u);
 	while(!queue.empty()) {
 		int s=queue.front();
+		visited[s]=true;
+		std::cout<<"Queue: ";
 		connectedComponents[ccCounter].push_back(s);
-		queue.pop_front();
-		for(int i=0;i<rows; i++) {
-			if(MTemp[i][s] && !visited[i+minRankIndex]) {
-				visited[i+minRankIndex]=1;
-				queue.push_back(i+minRankIndex);
-			}
+		for(std::list<int>::iterator itr = queue.begin(); itr!=queue.end(); itr++) {
+			std::cout<<*itr<<" ";
 		}
-		for(int i=0;i<vertices;i++){
-			if(s>=minRankIndex && s<=maxRankIndex && MTemp[s-minRankIndex][i] && !visited[i]) {
-				visited[i]=1;
-				queue.push_back(i);	
+		std::cout<<std::endl;
+		queue.pop_front();
+		std::map<int, std::set<int> >::iterator adj_list_itr;
+		adj_list_itr = g_adj_list.find(s);
+		if(adj_list_itr != g_adj_list.end()) {
+			for(std::set<int>::iterator itr = adj_list_itr->second.begin(); itr != adj_list_itr->second.end(); itr++) {
+				if(!visited[*itr]){
+					if(find(queue.begin(), queue.end(),*itr)!=queue.end()) {
+						continue;
+					}
+					else{
+						queue.push_back(*itr);	
+					}
+				}
 			}
 		}
 	}
-	// for(int v=0; v<vertices; v++) {
-	// 	cout<<"CC: "<<ccCounter<<" u: "<<u<<" v: "<<v<<" seen?: "<<seen[v]<<endl;
-	// 	if(!seen[v] && u<split && MTemp[u][v]) {
-	// 		dfs(v, ccCounter);
-	// 	}
-	// }
 }
 
 int main(int argc, char** argv) {
+	//testing example
+	// g_adj_list[1]=mySet1;
+	// g_adj_list[2]=mySet2;
+	// g_adj_list[3]=mySet3;
+	// g_adj_list[4]=mySet4;
+	// g_adj_list[5]=mySet5;
+	// g_adj_list[6]=mySet6;
+	// g_adj_list[7]=mySet7;
 	int ccCounter = -1;
-	for(int i=0; i<vertices; i++) {
-	visited[i]=0;
+	for(std::map<int, std::set<int> >::iterator itr = g_adj_list.begin(); itr!=g_adj_list.end(); itr++) {
+		visited[itr->first]=false;
 	}
-	for(int i=0; i<vertices; i++) {
-		if(!visited[i]) {
+	for(std::map<int, bool>::iterator itr =visited.begin(); itr!=visited.end(); itr++) {
+		if(!visited[itr->first]) {
 			ccCounter += 1;
-			vector<int> temp;
+			std::vector<int> temp;
 			connectedComponents.push_back(temp);
-			bfs(i, ccCounter);	
+			bfs(itr->first, ccCounter);	
 		}
 	}
 	for(int i=0; i<connectedComponents.size(); i++){
-		cout<<"CC "<<i<<" - ";
+		std::cout<<"CC "<<i<<" - ";
 		for(int j=0; j<connectedComponents[i].size(); j++) {
-			cout<<connectedComponents[i][j]+1<<", ";
+			std::cout<<connectedComponents[i][j]<<", ";
 		}
-		cout<<endl;
+		std::cout<<std::endl;
 	}
 	return 0;
 }
