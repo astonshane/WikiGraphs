@@ -28,12 +28,11 @@ int main(int argc, char** argv) {
 
 
   // Print off a hello world message
-  //parse_file();
-
+  parse_file();
+  printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
   if (g_mpi_rank == 0){
-    parse_file();
-    printf("Rank: %d    finished parse_file()\n", g_mpi_rank);
-    printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
+    //parse_file();
+    //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
   }
 
 
