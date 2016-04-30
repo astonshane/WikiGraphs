@@ -49,8 +49,8 @@ void parse_file(){
   printf("maximum id = %d\n", g_local_max_id);
   char filename[100];
 
-  sprintf(filename, "com-friendster.ungraph.txt");
-  //sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/friendster_data/friends-%s%d______.txt", padding.c_str(), g_file);
+  //sprintf(filename, "com-friendster.ungraph.txt");
+  sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/com-friendster.ungraph.txt");
   //printf("rank: %d  %s\n", g_mpi_rank, filename);
 
   MPI_File infile;
@@ -97,7 +97,7 @@ void add_to_adjlist(std::string line){
   int tab_pos = line.find("\t");
   int one = atoi(line.substr(0, tab_pos).c_str());
   int two = atoi(line.substr(tab_pos+1).c_str());
-  if (one % 10000 == 0){
+  if (g_mpi_rank == 0 && one % 1000000 == 0){
     std::cout << one << std::endl;
   }
   if (one < g_local_max_id){
