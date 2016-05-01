@@ -41,10 +41,10 @@ int main(int argc, char** argv) {
   // Print off a hello world message
   parse_file();
   //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
-  /*if (g_mpi_rank <2){
-    parse_file();
+  if (g_mpi_rank == 0){
+   // parse_file();
     //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
-  }*/
+  }
 
 
 
@@ -56,8 +56,8 @@ int main(int argc, char** argv) {
 
 void parse_file(){
   char filename[70];
-  sprintf(filename, "com-friendster.ungraph.txt");
-  //sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/com-friendster.ungraph.txt");
+  //sprintf(filename, "com-friendster.ungraph.txt");
+  sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/com-friendster.ungraph.txt");
 
   MPI_File infile;
   MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
@@ -74,7 +74,10 @@ void parse_file(){
   if (g_mpi_rank == g_world_size-1){
     file_end = filesize;
   }
-
+  if (g_mpi_rank != 0){
+   MPI_File_close(&infile);
+   return;
+  }
   MPI_Offset offset = file_start;
   char * buffer;
   std::string chunk = "";
@@ -83,7 +86,7 @@ void parse_file(){
   bool skip = (g_mpi_rank != 0);
 
   while (offset < file_end){
-    printf("offset: %lld, file_end: %lld, remainign: %lld\n", offset, file_end, file_end-offset);
+    printf("Rank: %d offset: %lld, file_end: %lld, remaining: %lld  size of adj_list: %lld\n", g_mpi_rank, offset, file_end, file_end-offset, g_adj_list.size());
     buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
     MPI_File_read_at(infile, offset, buffer, buffer_size, MPI_CHAR, MPI_STATUS_IGNORE);
     offset += buffer_size;
@@ -126,12 +129,12 @@ int id_to_rank(int id){
 }
 
 void isend(int one, int two, int rank){
-  int * to_send = (int *)malloc(2*sizeof(int));
+  /*int * to_send = (int *)malloc(2*sizeof(int));
   to_send[0] = one;
   to_send[1] = two;
   MPI_Request send;
   MPI_Isend(to_send, 2, MPI_INT, rank, 0, MPI_COMM_WORLD, &send);
-  free(to_send);
+  free(to_send);*/
 }
 
 void add_to_adjlist(std::string line){
