@@ -15,6 +15,7 @@ int g_max_id = 125000000;
 MPI_Offset file_start;
 MPI_Offset file_end;
 std::map<int, std::set<int>> g_adj_list;
+std::map<int, std::set<int>> g_bonus_list;
 
 void parse_file();
 void listen();
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
 
   // Print off a hello world message
   parse_file();
-  //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
+  printf("Rank: %d    g_adj_list.size(): %lu    g_bonus_list.size(): %lu\n", g_mpi_rank, g_adj_list.size(), g_bonus_list.size());
   if (g_mpi_rank == 0){
    // parse_file();
     //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
@@ -112,8 +113,6 @@ void parse_file(){
       chunk = chunk.substr(found_nl+1);
       found_nl = chunk.find('\n');
     }
-    MPI_Barrier(MPI_COMM_WORLD);
-    listen();
   }
   printf("Rank %d: finished read in of own portion of file    %lu\n", g_mpi_rank, g_adj_list.size());
   //MPI_Barrier(MPI_COMM_WORLD);
@@ -131,31 +130,6 @@ int id_to_rank(int id){
   return g_world_size-1;
 }
 
-void isend(int one, int two, int rank){
-  int * to_send = (int *)malloc(2*sizeof(int));
-  to_send[0] = one;
-  to_send[1] = two;
-  MPI_Request send;
-  MPI_Isend(to_send, 2, MPI_INT, rank, 0, MPI_COMM_WORLD, &send);
-  free(to_send);
-}
-
-void listen(){
-  int flag;
-  MPI_Status status;
-  MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-  while(flag){
-    int source = status.MPI_SOURCE;
-    int * to_recv = (int *)malloc(2*sizeof(int));
-    MPI_Request req;
-    MPI_Irecv(to_recv, 2, MPI_INT, source, 0, MPI_COMM_WORLD, &req);
-    //printf("Rank %d recieved %d %d from rank %d\n", g_mpi_rank, to_recv[0], to_recv[1], source);
-    g_adj_list[to_recv[0]].insert(to_recv[1]);
-    free(to_recv);
-    MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-  }
-}
-
 void add_to_adjlist(std::string line){
 
   int tab_pos = line.find("\t");
@@ -164,23 +138,13 @@ void add_to_adjlist(std::string line){
 
   if (one >= start_id && one < end_id){
     g_adj_list[one].insert(two);
-    int r2 = id_to_rank(two);
-    if (r2 == g_mpi_rank){
-      g_adj_list[two].insert(one);
-    }else{
-      //isend(two, one, r2);
-    }
-  }else{
     if (two >= start_id && two < end_id){
       g_adj_list[two].insert(one);
-      int r1 = id_to_rank(one);
-      //isend(one, two, r1);
     }else{
-      int r1 = id_to_rank(one);
-      int r2 = id_to_rank(two);
-      //isend(one, two, r1);
-      //isend(two, one, r2);
+      g_bonus_list[two].insert(one);
     }
+  }else{
+    g_bonus_list[one].insert(two);
+    g_bonus_list[two].insert(one);
   }
-
 }
