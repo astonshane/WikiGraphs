@@ -17,6 +17,7 @@ MPI_Offset file_end;
 std::map<int, std::set<int>> g_adj_list;
 
 void parse_file();
+void listen();
 void add_to_adjlist(std::string line);
 int id_to_rank(int id);
 
@@ -74,10 +75,10 @@ void parse_file(){
   if (g_mpi_rank == g_world_size-1){
     file_end = filesize;
   }
-  if (g_mpi_rank != 0){
+  /*if (g_mpi_rank != 0){
    MPI_File_close(&infile);
    return;
-  }
+  }*/
   MPI_Offset offset = file_start;
   char * buffer;
   std::string chunk = "";
@@ -86,7 +87,7 @@ void parse_file(){
   bool skip = (g_mpi_rank != 0);
 
   while (offset < file_end){
-    printf("Rank: %d offset: %lld, file_end: %lld, remaining: %lld  size of adj_list: %lld\n", g_mpi_rank, offset, file_end, file_end-offset, g_adj_list.size());
+   // printf("Rank: %d offset: %lld, file_end: %lld, remaining: %lld  size of adj_list: %lu\n", g_mpi_rank, offset, file_end, file_end-offset, g_adj_list.size());
     buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
     MPI_File_read_at(infile, offset, buffer, buffer_size, MPI_CHAR, MPI_STATUS_IGNORE);
     offset += buffer_size;
@@ -111,6 +112,8 @@ void parse_file(){
       chunk = chunk.substr(found_nl+1);
       found_nl = chunk.find('\n');
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    listen();
   }
   printf("Rank %d: finished read in of own portion of file    %lu\n", g_mpi_rank, g_adj_list.size());
   //MPI_Barrier(MPI_COMM_WORLD);
@@ -129,12 +132,28 @@ int id_to_rank(int id){
 }
 
 void isend(int one, int two, int rank){
-  /*int * to_send = (int *)malloc(2*sizeof(int));
+  int * to_send = (int *)malloc(2*sizeof(int));
   to_send[0] = one;
   to_send[1] = two;
   MPI_Request send;
   MPI_Isend(to_send, 2, MPI_INT, rank, 0, MPI_COMM_WORLD, &send);
-  free(to_send);*/
+  free(to_send);
+}
+
+void listen(){
+  int flag;
+  MPI_Status status;
+  MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
+  while(flag){
+    int source = status.MPI_SOURCE;
+    int * to_recv = (int *)malloc(2*sizeof(int));
+    MPI_Request req;
+    MPI_Irecv(to_recv, 2, MPI_INT, source, 0, MPI_COMM_WORLD, &req);
+    //printf("Rank %d recieved %d %d from rank %d\n", g_mpi_rank, to_recv[0], to_recv[1], source);
+    g_adj_list[to_recv[0]].insert(to_recv[1]);
+    free(to_recv);
+    MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
+  }
 }
 
 void add_to_adjlist(std::string line){
@@ -149,18 +168,18 @@ void add_to_adjlist(std::string line){
     if (r2 == g_mpi_rank){
       g_adj_list[two].insert(one);
     }else{
-      isend(two, one, r2);
+      //isend(two, one, r2);
     }
   }else{
     if (two >= start_id && two < end_id){
       g_adj_list[two].insert(one);
       int r1 = id_to_rank(one);
-      isend(one, two, r1);
+      //isend(one, two, r1);
     }else{
       int r1 = id_to_rank(one);
       int r2 = id_to_rank(two);
-      isend(one, two, r1);
-      isend(two, one, r2);
+      //isend(one, two, r1);
+      //isend(two, one, r2);
     }
   }
 
