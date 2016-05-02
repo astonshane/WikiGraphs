@@ -11,16 +11,17 @@ int g_world_size;
 int g_mpi_rank;
 int start_id;
 int end_id;
-int g_max_id = 125000000;
+int g_max_id = 550000;
 MPI_Offset file_start;
 MPI_Offset file_end;
 std::map<int, std::set<int>> g_adj_list;
 std::map<int, std::set<int>> g_bonus_list;
 
 void parse_file();
-void listen();
 void add_to_adjlist(std::string line);
 int id_to_rank(int id);
+int * bonus_to_list(int id);
+int bonus_list_size(int id);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
@@ -58,8 +59,8 @@ int main(int argc, char** argv) {
 
 void parse_file(){
   char filename[70];
-  //sprintf(filename, "com-friendster.ungraph.txt");
-  sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/com-friendster.ungraph.txt");
+  sprintf(filename, "com-amazon.ungraph.txt");
+  //sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch-shared/com-amazon.ungraph.txt");
 
   MPI_File infile;
   MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
@@ -76,14 +77,14 @@ void parse_file(){
   if (g_mpi_rank == g_world_size-1){
     file_end = filesize;
   }
-  /*if (g_mpi_rank != 0){
+  /*if (g_mpi_rank != 0){c
    MPI_File_close(&infile);
    return;
   }*/
   MPI_Offset offset = file_start;
   char * buffer;
   std::string chunk = "";
-  unsigned int buffer_size = 100000;
+  unsigned int buffer_size = 10000;
 
   bool skip = (g_mpi_rank != 0);
 
@@ -114,9 +115,69 @@ void parse_file(){
       found_nl = chunk.find('\n');
     }
   }
-  printf("Rank %d: finished read in of own portion of file    %lu\n", g_mpi_rank, g_adj_list.size());
+  printf("Rank: %d    g_adj_list.size(): %lu    g_bonus_list.size(): %lu\n", g_mpi_rank, g_adj_list.size(), g_bonus_list.size());
+
+  for (int id=0; id<g_max_id; id++){
+    int r1 = id_to_rank(id);
+    int * bonus = bonus_to_list(id);
+    int bonus_size = bonus_list_size(id);
+    int * to_recv = NULL;
+    int * disp = NULL;
+    if (r1 == g_mpi_rank){
+      to_recv = (int *)calloc(g_world_size, sizeof(int));
+      disp = (int *)calloc(g_world_size, sizeof(int));
+    }
+    MPI_Gather(&bonus_size, 1, MPI_INT, to_recv, g_world_size, MPI_INT, r1, MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    int total = 0;
+    int *to_recv2 = NULL;
+
+    if (r1 == g_mpi_rank){
+      for (int i=0; i<g_world_size; i++){
+        disp[i] = total;
+        total += to_recv[i];
+      }
+      to_recv2 = (int *)calloc(total, sizeof(int));
+      //printf("rank %d   id: %d    %d\n", g_mpi_rank, id, total);
+    }
+    //printf("id %d: id %d: total %d\n", g_mpi_rank, id, total);
+    MPI_Gatherv(bonus, bonus_size, MPI_INT, to_recv2, to_recv, disp, MPI_INT, r1, MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    g_bonus_list.erase(id);
+    for (int i=0; i<total; i++){
+      g_adj_list[id].insert(to_recv2[i]);
+    }
+    free(to_recv);
+    free(to_recv2);
+    free(disp);
+  }
+
+
   //MPI_Barrier(MPI_COMM_WORLD);
   MPI_File_close(&infile);
+}
+
+
+
+int * bonus_to_list(int id){
+  int size = bonus_list_size(id);
+  int* bonus = (int *)malloc((size)*sizeof(int));
+  if (size == 0){
+    return bonus;
+  }
+  auto itr = g_bonus_list[id].begin();
+  for (int i=0; i<size; i++){
+    bonus[i] = *itr;
+    itr++;
+  }
+  return bonus;
+}
+int bonus_list_size(int id){
+  if (g_bonus_list.find(id) != g_bonus_list.end()){
+    return g_bonus_list[id].size();
+  }else{
+    return 0;
+  }
 }
 
 int id_to_rank(int id){
@@ -144,6 +205,7 @@ void add_to_adjlist(std::string line){
       g_bonus_list[two].insert(one);
     }
   }else{
+    //std::cout << "adding to bonus list" << std::endl;
     g_bonus_list[one].insert(two);
     g_bonus_list[two].insert(one);
   }
