@@ -23,7 +23,7 @@ std::map<int, std::vector<int>> g_adj_list;
 
 void parse_file_one_rank();
 void parse_file();
-void add_to_adjlist(std::string line);
+int add_to_adjlist(std::string line);
 int id_to_rank(int id);
 
 int main(int argc, char** argv) {
@@ -45,13 +45,13 @@ int main(int argc, char** argv) {
   printf("Rank %d: start_id: %d end_id: %d\n", g_mpi_rank, start_id, end_id);
 
   // Print off a hello world message
-  parse_file();   
+  parse_file();
   // if(g_mpi_rank==0){
   //   parse_file_one_rank();
   // }
 
   MPI_Barrier(MPI_COMM_WORLD);
-  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %lu\n", g_mpi_rank, g_adj_list.size(), count);
+  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d\n", g_mpi_rank, g_adj_list.size(), count);
   //if (g_mpi_rank == 0){
    // parse_file();
     //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
@@ -94,7 +94,7 @@ void parse_file_one_rank(){
     sstm.clear();
     sstm<<two<<"\t"<<one<<"\n";
     std::string lineTwo = sstm.str();
-    
+
     *streams[oneFile]<<lineOne;
     *streams[twoFile]<<lineTwo;
     if(count%500000==0){
@@ -108,18 +108,67 @@ void parse_file_one_rank(){
 void parse_file(){
   int lowFile = floor((double)start_id/1000000);
   int highFile = floor((double)end_id/1000000);
+  // loop through all of the files that will hold information about our set of ids
   for (int i=0; i<highFile-lowFile+1; i++){
-    std::stringstream sstm;
-    sstm<<"/gpfs/u/home/PCP5/PCP5bhgw/scratch/users_"<<lowFile<<".txt";
-    std::ifstream infile(sstm.str().c_str());
-    std::string line;
-    while(std::getline(infile,line)){
-      add_to_adjlist(line);  
-    }
-    //MPI_Barrier(MPI_COMM_WORLD);
-    lowFile++;
-    sstm.str(std::string());
-    sstm.clear();
+    // create the filename as a c_str
+    char filename[100];
+    sprintf(filename, "/gpfs/u/home/PCP5/PCP5bhgw/scratch/users_%d.txt", lowFile);
+
+    // open the file and get the filesize
+    MPI_File infile;
+    MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
+    MPI_Offset filesize = 0;
+    MPI_File_get_size(infile, &filesize);
+
+    // start the offset at 0, for now
+    MPI_Offset offset = 0;
+    char * buffer;
+    std::string chunk = "";
+    // set the buffer size, ie. how much to read in at a time
+    unsigned int buffer_size = 10000;
+
+    // keep track of the latest id that we read in so that we can stop reading if we've found the last id that we need
+    int latest_id_found = 0;
+
+    // loop while we haven't read the whole file and we haven't found the latest id yet
+    while (offset < file_end && latest_id_found < end_id){
+      // printf("Rank: %d offset: %lld, file_end: %lld, remaining: %lld  size of adj_list: %lu\n", g_mpi_rank, offset, file_end, file_end-offset, g_adj_list.size());
+      // read in a chukn to the buffer
+      buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
+      MPI_File_read_at(infile, offset, buffer, buffer_size, MPI_CHAR, MPI_STATUS_IGNORE);
+      offset += buffer_size;
+      // end the string
+      buffer[buffer_size] = '\0';
+      // make the c_string a std::string for convenience
+      std::string new_string(buffer);
+      free(buffer);
+      // add the new string to the existing one
+      chunk += new_string;
+
+      /*if (skip){
+        // skip up to the first newline to remove any broken lines from starting in the middle of the file
+        chunk = chunk.substr(chunk.find('\n')+1);
+      }else{
+        skip = true;
+      }*/
+
+      // find the first newline in the file
+      int found_nl = chunk.find('\n');
+      // loop while there are still newlines and we havne't found the last id yet
+      while (found_nl < chunk.size() && latest_id_found < end_id){
+        // get the part of the string before the newline
+        std::string line = chunk.substr(0, found_nl);
+        // parse that part of it
+        latest_id_found = add_to_adjlist(line);
+
+        // reset the string so it is past that first part
+        chunk = chunk.substr(found_nl+1);
+        // search for another newline
+        found_nl = chunk.find('\n');
+      }
+   }
+   // go to the next file
+   lowFile++;
   }
   printf("Rank %d: finished read in of own portion of file    %lu\n", g_mpi_rank, g_adj_list.size());
     //sprintf(filename, "com-friendster.ungraph.txt");
@@ -136,10 +185,10 @@ int id_to_rank(int id){
   return g_world_size-1;
 }
 
-void add_to_adjlist(std::string line){
+int add_to_adjlist(std::string line){
   int tab_pos = line.find("\t");
   int one = atoi(line.substr(0, tab_pos).c_str());
-  int two = atoi(line.substr(tab_pos+1).c_str()); 
+  int two = atoi(line.substr(tab_pos+1).c_str());
   //std::cout<<start_id<<" "<<end_id<<std::endl;
   if (one >= start_id && one < end_id){
     g_adj_list[one].push_back(two);
@@ -148,4 +197,5 @@ void add_to_adjlist(std::string line){
       std::cout<<g_mpi_rank<<" "<<count<<std::endl;
     }
   }
+  return one;
 }
