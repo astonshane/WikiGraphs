@@ -25,6 +25,7 @@ void parse_file_one_rank();
 void parse_file();
 int add_to_adjlist(std::string line);
 int id_to_rank(int id);
+MPI_Offset compute_offset(MPI_File infile, MPI_Offset filesize);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
@@ -105,6 +106,39 @@ void parse_file_one_rank(){
 }
 
 
+MPI_Offset compute_offset(MPI_File infile, MPI_Offset filesize){
+  MPI_Offset offset = 0;
+  int num_sections = 16;
+  for (int i=1; i<num_sections; i++){
+    // set the temp offset
+    int tmp_offset = (filesize / num_sections) * i;
+
+    // allocate some space to read in at the offset
+    char * buffer = (char *)malloc( (1001)*sizeof(char));
+    // read in there
+    MPI_File_read_at(infile, tmp_offset, buffer, 1000, MPI_CHAR, MPI_STATUS_IGNORE);
+    buffer[1000] = '\0';
+    // cast as a string
+    std::string chunk(buffer);
+    free(buffer);
+
+    // read up to the first newline and throw that away
+    chunk = chunk.substr(chunk.find('\n'));
+    // get everything from there to the next newline
+    std::string line = chunk.substr(0, chunk.find('\n'));
+
+    // split it up over the tab and pull out the first id
+    int tab_pos = line.find("\t");
+    int first_id = atoi(line.substr(0, tab_pos).c_str());
+    // if this id is greater than the starting id, the offset is too big, go to the last one
+    if (first_id > start_id){
+      offset = (filesize / num_sections) * (i-1);
+      break;
+    }
+  }
+  return offset;
+}
+
 void parse_file(){
   int lowFile = floor((double)start_id/1000000);
   int highFile = floor((double)end_id/1000000);
@@ -121,7 +155,7 @@ void parse_file(){
     MPI_File_get_size(infile, &filesize);
 
     // start the offset at 0, for now
-    MPI_Offset offset = 0;
+    MPI_Offset offset = compute_offset(infile, filesize);
     char * buffer;
     std::string chunk = "";
     // set the buffer size, ie. how much to read in at a time
