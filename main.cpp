@@ -165,7 +165,7 @@ void parse_file(){
     int latest_id_found = 0;
 
     // loop while we haven't read the whole file and we haven't found the latest id yet
-    while (offset < file_end && latest_id_found < end_id){
+    while (offset < fliesize && latest_id_found < end_id){
       // printf("Rank: %d offset: %lld, file_end: %lld, remaining: %lld  size of adj_list: %lu\n", g_mpi_rank, offset, file_end, file_end-offset, g_adj_list.size());
       // read in a chukn to the buffer
       buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
