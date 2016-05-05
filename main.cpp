@@ -165,6 +165,7 @@ void parse_file(){
 
     // start the offset at 0, for now
     MPI_Offset offset = compute_offset(filename);
+
     bool skip = true;
     if(offset==0){
       skip = false;
