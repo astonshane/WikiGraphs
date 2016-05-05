@@ -21,8 +21,8 @@ int count = 0;
 MPI_Offset file_start;
 MPI_Offset file_end;
 std::map<int, std::vector<int> > g_adj_list;
-bool visited[g_max_id] = {0};
-bool inQueue[g_max_id] = {0};
+bool * visited = (bool *)calloc(g_max_id, sizeof(bool));
+bool * inQueue = (bool *)calloc(g_max_id, sizeof(bool));
 std::vector<std::list<int> > connectedComponents;
 std::map<int, std::vector<int> > boundaryEdges;
 
@@ -53,13 +53,11 @@ int main(int argc, char** argv) {
 
   // Print off a hello world message
   parse_file();
-  // if(g_mpi_rank==0){
-  //   parse_file_one_rank();
-  // }
-  MPI_Barrier(MPI_COMM_WORLD);
-  if(g_mpi_rank == 0){
-    printf("Done parsing files");
+  for(int i=0; i<g_max_id; i++){
+    visited[i]=false;
+    inQueue[i]=false;
   }
+
   for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++){
     visited[itr->first]=true;
   }
@@ -100,22 +98,12 @@ int main(int argc, char** argv) {
   //   }
   //   std::cout<<std::endl;
   // }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if(g_mpi_rank == 0){
+  //   printf("Done computing spanning forests");
+  // }
+  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
   MPI_Barrier(MPI_COMM_WORLD);
-  if(g_mpi_rank == 0){
-    printf("Done computing spanning forests");
-  }
-  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n ", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
-  
-  MPI_Barrier(MPI_COMM_WORLD);
-  if(g_mpi_rank == 152) {
-    for(int i =0; i<connectedComponents.size(); i++) {
-      std::cout<<(connectedComponents[i]).size()<<std::endl;
-      for(std::list<int>::iterator itr = connectedComponents[i].begin(); itr != connectedComponents[i].end(); itr++){
-        std::cout<<*itr<<" ";
-      }
-      printf("\n\n\n\n\n\n");
-    }
-  }
   //if (g_mpi_rank == 0){
    // parse_file();
     //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
@@ -315,7 +303,7 @@ void bfs(int u, int ccCounter) {
     queue.pop_front();
     std::map<int, std::vector<int> >::iterator adj_list_itr;
     adj_list_itr = g_adj_list.find(s);
-    if(adj_list_itr == g_adj_list.end()) {
+    if(adj_list_itr->second.size() == 1) {
       std::map<int, std::vector<int> >::iterator it = boundaryEdges.find(prev);
       if(it != boundaryEdges.end()){
         it->second.push_back(s);
@@ -326,8 +314,7 @@ void bfs(int u, int ccCounter) {
         boundaryEdges[prev] = temp;
       }
     }
-    prev = s;
-    if(adj_list_itr != g_adj_list.end()) {
+    else {
       for(std::vector<int>::iterator itr = adj_list_itr->second.begin(); itr != adj_list_itr->second.end(); itr++) {
         if(!visited[*itr]){
           if(inQueue[*itr]) {
@@ -340,5 +327,6 @@ void bfs(int u, int ccCounter) {
         }
       }
     }
+    prev = s;
   }
 }
