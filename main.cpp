@@ -15,7 +15,7 @@ int g_world_size;
 int g_mpi_rank;
 int start_id;
 int end_id;
-int g_max_id = 125000000;
+int g_max_id = 3072441;
 int count = 0;
 MPI_Offset file_start;
 MPI_Offset file_end;
@@ -147,13 +147,13 @@ MPI_Offset compute_offset(char * filename){
 }
 
 void parse_file(){
-  int lowFile = floor((double)start_id/1000000);
-  int highFile = floor((double)end_id/1000000);
+  int lowFile = floor((double)start_id/24600);
+  int highFile = floor((double)end_id/24600);
   // loop through all of the files that will hold information about our set of ids
   for (int i=0; i<highFile-lowFile+1; i++){
     // create the filename as a c_str
     char filename[100];
-    sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch/users_%d.txt", lowFile);
+    sprintf(filename, "/gpfs/u/home/PCP5/PCP5stns/scratch/user_%d.txt", lowFile);
 
     // open the file and get the filesize
     MPI_File infile;
@@ -165,6 +165,10 @@ void parse_file(){
 
     // start the offset at 0, for now
     MPI_Offset offset = compute_offset(filename);
+    bool skip = true;
+    if(offset==0){
+      skip = false;
+    }
     char * buffer;
     std::string chunk = "";
     // set the buffer size, ie. how much to read in at a time
@@ -179,7 +183,7 @@ void parse_file(){
       // read in a chukn to the buffer
       buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
       MPI_File_read_at(infile, offset, buffer, buffer_size, MPI_CHAR, MPI_STATUS_IGNORE);
-      offset += buffer_size;
+      offset += buffer_size-100;
       // end the string
       buffer[buffer_size] = '\0';
       // make the c_string a std::string for convenience
@@ -188,12 +192,12 @@ void parse_file(){
       // add the new string to the existing one
       chunk += new_string;
 
-      /*if (skip){
+      if (skip){
         // skip up to the first newline to remove any broken lines from starting in the middle of the file
         chunk = chunk.substr(chunk.find('\n')+1);
       }else{
         skip = true;
-      }*/
+      }
 
       // find the first newline in the file
       int found_nl = chunk.find('\n');
@@ -236,7 +240,7 @@ int add_to_adjlist(std::string line){
   if (one >= start_id && one < end_id){
     g_adj_list[one].push_back(two);
     count++;
-    if(count%1000000==0){
+    if(count%100000==0){
       std::cout<<g_mpi_rank<<" "<<count<<std::endl;
     }
   }
