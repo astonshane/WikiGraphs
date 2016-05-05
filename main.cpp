@@ -15,7 +15,7 @@ int g_world_size;
 int g_mpi_rank;
 int start_id;
 int end_id;
-int g_max_id = 125000000;
+int g_max_id = 3072441;
 int count = 0;
 MPI_Offset file_start;
 MPI_Offset file_end;
@@ -25,10 +25,11 @@ void parse_file_one_rank();
 void parse_file();
 int add_to_adjlist(std::string line);
 int id_to_rank(int id);
-MPI_Offset compute_offset(MPI_File infile, MPI_Offset filesize);
+MPI_Offset compute_offset(char * filename);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
+  int test;
   MPI_Init(&argc, &argv);
 
   // Get the number of processes
@@ -106,9 +107,14 @@ void parse_file_one_rank(){
 }
 
 
-MPI_Offset compute_offset(MPI_File infile, MPI_Offset filesize){
+MPI_Offset compute_offset(char * filename){
+  MPI_File infile;
+  MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &infile);
+  MPI_Offset filesize = 0;
+  MPI_File_get_size(infile, &filesize);
+
   MPI_Offset offset = 0;
-  int num_sections = 16;
+  int num_sections = 100;
   for (int i=1; i<num_sections; i++){
     // set the temp offset
     int tmp_offset = (filesize / num_sections) * i;
@@ -121,9 +127,10 @@ MPI_Offset compute_offset(MPI_File infile, MPI_Offset filesize){
     // cast as a string
     std::string chunk(buffer);
     free(buffer);
+    //std::cout << chunk << std::endl;
 
     // read up to the first newline and throw that away
-    chunk = chunk.substr(chunk.find('\n'));
+    chunk = chunk.substr(chunk.find('\n')+1);
     // get everything from there to the next newline
     std::string line = chunk.substr(0, chunk.find('\n'));
 
@@ -140,13 +147,13 @@ MPI_Offset compute_offset(MPI_File infile, MPI_Offset filesize){
 }
 
 void parse_file(){
-  int lowFile = floor((double)start_id/1000000);
-  int highFile = floor((double)end_id/1000000);
+  int lowFile = floor((double)start_id/24600);
+  int highFile = floor((double)end_id/24600);
   // loop through all of the files that will hold information about our set of ids
   for (int i=0; i<highFile-lowFile+1; i++){
     // create the filename as a c_str
     char filename[100];
-    sprintf(filename, "/gpfs/u/home/PCP5/PCP5bhgw/scratch/users_%d.txt", lowFile);
+    sprintf(filename, "/gpfs/u/home/PCP5/PCP5bhgw/scratch/user_%d.txt", lowFile);
 
     // open the file and get the filesize
     MPI_File infile;
@@ -154,8 +161,10 @@ void parse_file(){
     MPI_Offset filesize = 0;
     MPI_File_get_size(infile, &filesize);
 
+    //printf("%s: %lu", filename, filesize);
+
     // start the offset at 0, for now
-    MPI_Offset offset = compute_offset(infile, filesize);
+    MPI_Offset offset = compute_offset(filename);
     char * buffer;
     std::string chunk = "";
     // set the buffer size, ie. how much to read in at a time
@@ -165,7 +174,7 @@ void parse_file(){
     int latest_id_found = 0;
 
     // loop while we haven't read the whole file and we haven't found the latest id yet
-    while (offset < file_end && latest_id_found < end_id){
+    while (offset < filesize && latest_id_found < end_id){
       // printf("Rank: %d offset: %lld, file_end: %lld, remaining: %lld  size of adj_list: %lu\n", g_mpi_rank, offset, file_end, file_end-offset, g_adj_list.size());
       // read in a chukn to the buffer
       buffer = (char *)malloc( (buffer_size + 1)*sizeof(char));
@@ -227,7 +236,7 @@ int add_to_adjlist(std::string line){
   if (one >= start_id && one < end_id){
     g_adj_list[one].push_back(two);
     count++;
-    if(count%1000000==0){
+    if(count%100000==0){
       std::cout<<g_mpi_rank<<" "<<count<<std::endl;
     }
   }
