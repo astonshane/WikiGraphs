@@ -103,6 +103,8 @@ int main(int argc, char** argv) {
   //   printf("Done computing spanning forests");
   // }
   printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
+  free(visited);
+  free(inQueue);
   MPI_Barrier(MPI_COMM_WORLD);
   //if (g_mpi_rank == 0){
    // parse_file();
