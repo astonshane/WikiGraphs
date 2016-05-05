@@ -10,26 +10,31 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
+#include <list>
 
 int g_world_size;
 int g_mpi_rank;
 int start_id;
 int end_id;
-int g_max_id = 3072441;
+const int g_max_id = 3072441;
 int count = 0;
 MPI_Offset file_start;
 MPI_Offset file_end;
-std::map<int, std::vector<int>> g_adj_list;
+std::map<int, std::vector<int> > g_adj_list;
+bool visited[g_max_id] = {0};
+bool inQueue[g_max_id] = {0};
+std::vector<std::list<int> > connectedComponents;
+std::map<int, std::vector<int> > boundaryEdges;
 
 void parse_file_one_rank();
 void parse_file();
 int add_to_adjlist(std::string line);
 int id_to_rank(int id);
 MPI_Offset compute_offset(char * filename);
+void bfs(int u, int ccCounter);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
-  int test;
   MPI_Init(&argc, &argv);
 
   // Get the number of processes
@@ -44,16 +49,73 @@ int main(int argc, char** argv) {
     end_id = g_max_id;
   }
 
-  printf("Rank %d: start_id: %d end_id: %d\n", g_mpi_rank, start_id, end_id);
+  //printf("Rank %d: start_id: %d end_id: %d\n", g_mpi_rank, start_id, end_id);
 
   // Print off a hello world message
   parse_file();
   // if(g_mpi_rank==0){
   //   parse_file_one_rank();
   // }
-
   MPI_Barrier(MPI_COMM_WORLD);
-  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d\n", g_mpi_rank, g_adj_list.size(), count);
+  if(g_mpi_rank == 0){
+    printf("Done parsing files");
+  }
+  for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++){
+    visited[itr->first]=true;
+  }
+
+  for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++) {
+    std::vector<int> temp = itr->second;
+    for(int i =0; i<temp.size(); i++){
+      if(!visited[temp[i]]){
+        if(g_adj_list.find(temp[i])==g_adj_list.end()){
+          std::vector<int> temp1;
+          temp1.push_back(itr->first);
+          g_adj_list[temp[i]] = temp1;  
+        }
+        else{
+          g_adj_list[temp[i]].push_back(itr->first);
+        }
+      }
+    }
+  }
+  
+  for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++){
+    visited[itr->first]=false;
+  }
+
+  int ccCounter = -1;
+  for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++) {
+    if(!visited[itr->first]) {
+      ccCounter += 1;
+      std::list<int> temp;
+      connectedComponents.push_back(temp);
+      bfs(itr->first, ccCounter); 
+    }
+  }
+  // for(int i=0; i<connectedComponents.size(); i++){
+  //   std::cout<<"CC "<<i<<" - ";
+  //   for(int j=0; j<connectedComponents[i].size(); j++) {
+  //     std::cout<<connectedComponents[i][j]<<", ";
+  //   }
+  //   std::cout<<std::endl;
+  // }
+  MPI_Barrier(MPI_COMM_WORLD);
+  if(g_mpi_rank == 0){
+    printf("Done computing spanning forests");
+  }
+  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n ", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+  if(g_mpi_rank == 152) {
+    for(int i =0; i<connectedComponents.size(); i++) {
+      std::cout<<(connectedComponents[i]).size()<<std::endl;
+      for(std::list<int>::iterator itr = connectedComponents[i].begin(); itr != connectedComponents[i].end(); itr++){
+        std::cout<<*itr<<" ";
+      }
+      printf("\n\n\n\n\n\n");
+    }
+  }
   //if (g_mpi_rank == 0){
    // parse_file();
     //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
@@ -99,10 +161,6 @@ void parse_file_one_rank(){
 
     *streams[oneFile]<<lineOne;
     *streams[twoFile]<<lineTwo;
-    if(count%500000==0){
-      double percent = one/(double)g_max_id*100;
-      std::cout<<percent<<"%"<<std::endl;
-    }
   }
 }
 
@@ -218,7 +276,7 @@ void parse_file(){
    // go to the next file
    lowFile++;
   }
-  printf("Rank %d: finished read in of own portion of file    %lu\n", g_mpi_rank, g_adj_list.size());
+  //printf("Rank %d: finished read in of own portion of file    %lu\n", g_mpi_rank, g_adj_list.size());
     //sprintf(filename, "com-friendster.ungraph.txt");
 }
 
@@ -241,9 +299,46 @@ int add_to_adjlist(std::string line){
   if (one >= start_id && one < end_id){
     g_adj_list[one].push_back(two);
     count++;
-    if(count%100000==0){
-      std::cout<<g_mpi_rank<<" "<<count<<std::endl;
-    }
   }
   return one;
+}
+
+void bfs(int u, int ccCounter) {
+  std::list<int> queue;
+  visited[u] = true;
+  queue.push_back(u);
+  int prev = u;
+  while(!queue.empty()) {
+    int s=queue.front();
+    visited[s]=true;
+    connectedComponents[ccCounter].push_back(s);
+    queue.pop_front();
+    std::map<int, std::vector<int> >::iterator adj_list_itr;
+    adj_list_itr = g_adj_list.find(s);
+    if(adj_list_itr == g_adj_list.end()) {
+      std::map<int, std::vector<int> >::iterator it = boundaryEdges.find(prev);
+      if(it != boundaryEdges.end()){
+        it->second.push_back(s);
+      }
+      else{
+        std::vector<int> temp;
+        temp.push_back(s);
+        boundaryEdges[prev] = temp;
+      }
+    }
+    prev = s;
+    if(adj_list_itr != g_adj_list.end()) {
+      for(std::vector<int>::iterator itr = adj_list_itr->second.begin(); itr != adj_list_itr->second.end(); itr++) {
+        if(!visited[*itr]){
+          if(inQueue[*itr]) {
+            continue;
+          }
+          else{
+            queue.push_back(*itr);
+            inQueue[*itr] = true;  
+          }
+        }
+      }
+    }
+  }
 }
