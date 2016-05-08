@@ -1,16 +1,17 @@
 #include <stdio.h>
 #include <mpi.h>
 #include <math.h>
+#include <climits>
 #include <iostream>
 #include <string>
 #include <map>
 #include <set>
+#include <list>
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <vector>
 #include <sstream>
-#include <list>
 
 int g_world_size;
 int g_mpi_rank;
@@ -23,8 +24,9 @@ MPI_Offset file_end;
 std::map<int, std::vector<int> > g_adj_list;
 bool * visited = (bool *)calloc(g_max_id, sizeof(bool));
 bool * inQueue = (bool *)calloc(g_max_id, sizeof(bool));
-std::vector<std::list<int> > connectedComponents;
 std::map<int, std::vector<int> > boundaryEdges;
+std::vector<std::set<int> > connectedComponents;
+
 
 void parse_file_one_rank();
 void parse_file();
@@ -35,8 +37,10 @@ void bfs(int u, int ccCounter);
 
 int main(int argc, char** argv) {
   // Initialize the MPI environment
+  int ccCounter = -1;
   MPI_Init(&argc, &argv);
-
+  int bracket_size;
+  int gap;
   // Get the number of processes
   MPI_Comm_size(MPI_COMM_WORLD, &g_world_size);
 
@@ -82,11 +86,10 @@ int main(int argc, char** argv) {
     visited[itr->first]=false;
   }
 
-  int ccCounter = -1;
   for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++) {
     if(!visited[itr->first]) {
       ccCounter += 1;
-      std::list<int> temp;
+      std::set<int> temp;
       connectedComponents.push_back(temp);
       bfs(itr->first, ccCounter); 
     }
@@ -110,10 +113,61 @@ int main(int argc, char** argv) {
    // parse_file();
     //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
   // }
-
-
-
+  MPI_Barrier(MPI_COMM_WORLD);
   // Finalize the MPI environment.
+
+  gap = 1;
+  int num_cc;
+ // MPI_Request first_req, req;
+  MPI_Status stat;
+  int cc_size;
+  bracket_size = g_world_size;
+  while(bracket_size > 1){
+    if(g_mpi_rank%gap != 0) continue;
+
+    if((g_mpi_rank/gap)%2 == 0){ //recieves
+      MPI_Recv(&num_cc, 1, MPI_INT, g_mpi_rank+gap, 1,MPI_COMM_WORLD, &stat);
+      for(int j = 0; j < num_cc; j++){
+        MPI_Recv(&cc_size, 1, MPI_INT, g_mpi_rank+gap, 2*j, MPI_COMM_WORLD, &stat);
+        int incoming_cc[cc_size];
+        MPI_Recv(incoming_cc, cc_size, MPI_INT, g_mpi_rank+gap, 2*j + 1, MPI_COMM_WORLD, &stat);
+        std::set<int> new_cc(incoming_cc, incoming_cc + sizeof(incoming_cc) / sizeof(incoming_cc[0]));
+
+        std::vector<int> overlaps;
+        for(std::set<int>::iterator iter = new_cc.begin(); iter != new_cc.end(); ++iter){
+          for(unsigned i = 0; i < connectedComponents.size(); ++i){
+            if(connectedComponents[i].find(*iter) != connectedComponents[i].end()){
+                new_cc.insert(connectedComponents[i].begin(), connectedComponents[i].end());
+                overlaps.push_back(i);
+            }
+          }
+        }
+        for(unsigned i = 0; i < overlaps.size(); ++i){
+          connectedComponents.erase(connectedComponents.begin() + overlaps[i]);
+        }
+        connectedComponents.push_back(new_cc);
+      }
+    }else if((g_mpi_rank/gap)%2 == 1){ //sends
+      num_cc = connectedComponents.size();
+      MPI_Send(&num_cc, 1, MPI_INT, g_mpi_rank-gap, 1,MPI_COMM_WORLD);
+      for(int j = 0; j < num_cc; j++){
+        cc_size = connectedComponents[j].size();
+        MPI_Send(&cc_size, 1, MPI_INT, g_mpi_rank-gap, 2*j, MPI_COMM_WORLD);
+        int outgoing_cc[cc_size];
+        int i =0;
+        for(std::set<int>::iterator iter = connectedComponents[j].begin(); iter != connectedComponents[j].end(); ++iter){
+          outgoing_cc[i] = *iter;
+          ++i;
+        }
+        MPI_Send(outgoing_cc, cc_size, MPI_INT, g_mpi_rank-gap, 2*j + 1, MPI_COMM_WORLD);
+      }
+    }
+
+    bracket_size = bracket_size/2;
+    gap*=2;
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
   MPI_Finalize();
 
   return 0;
@@ -301,7 +355,7 @@ void bfs(int u, int ccCounter) {
   while(!queue.empty()) {
     int s=queue.front();
     visited[s]=true;
-    connectedComponents[ccCounter].push_back(s);
+    connectedComponents[ccCounter].insert(s);
     queue.pop_front();
     std::map<int, std::vector<int> >::iterator adj_list_itr;
     adj_list_itr = g_adj_list.find(s);
