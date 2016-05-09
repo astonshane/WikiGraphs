@@ -64,8 +64,10 @@ int main(int argc, char** argv) {
   parse_file();
   end_parse_time = GetTimeBase();
 
-  printf("Parse Time (raw timer): %llu\n", end_parse_time - start_parse_time);
-  printf("Parse Time (seconds?): %f\n", float(end_parse_time - start_parse_time)/float(1600000000));
+  if (g_mpi_rank == 0){
+    printf("Parse Time (raw timer): %llu\n", end_parse_time - start_parse_time);
+    printf("Parse Time (seconds?): %f\n", float(end_parse_time - start_parse_time)/float(1600000000));
+  }
 
   start_cc_time = GetTimeBase();
   for(int i=0; i<g_max_id; i++){
@@ -114,8 +116,11 @@ int main(int argc, char** argv) {
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  printf("CC Time: %llu\n", end_cc_time - start_cc_time);
-  printf("CC Time (seconds?): %f\n", float(end_cc_time - start_cc_time)/float(1600000000));
+  if (g_mpi_rank == 0){
+    printf("CC Time: %llu\n", end_cc_time - start_cc_time);
+    printf("CC Time (seconds?): %f\n", float(end_cc_time - start_cc_time)/float(1600000000));
+  }
+
 
   // Finalize the MPI environment.
   MPI_Finalize();
