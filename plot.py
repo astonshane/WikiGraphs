@@ -14,7 +14,7 @@ def overall(kind):
     for rpn in ranks_per_node:
         num_ranks = map(lambda x: x*rpn, num_nodes)
 
-        times = db[kind][str(rpn)]
+        times = db['tests'][kind][str(rpn)]
         plt.plot(num_nodes, times, marker, label="%d ranks per node" % rpn)
 
     plt.title("%s Performance" % kind)
@@ -31,7 +31,7 @@ def individual(kind):
         plt.clf()
         num_ranks = map(lambda x: x*rpn, num_nodes)
 
-        times = db[kind][str(rpn)]
+        times = db['tests'][kind][str(rpn)]
         plt.plot(num_ranks, times, marker)
 
         plt.title("%s - %d ranks per node" % (kind, rpn))
@@ -41,6 +41,7 @@ def individual(kind):
         plt.savefig("%s_%d_rpn.png" % (skind, rpn))
 
 if __name__ == '__main__':
-    for kind in ["Input Parsing", "Connected Component"]:
+    for kind in db['tests']:
+        print kind
         overall(kind)
         individual(kind)
