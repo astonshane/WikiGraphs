@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
+  //printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
   free(visited);
   free(inQueue);
   end_cc_time = GetTimeBase();
@@ -218,7 +218,6 @@ void parse_file(){
     MPI_Offset filesize = 0;
     MPI_File_get_size(infile, &filesize);
 
-    //printf("%s: %lu", filename, filesize);
 
     // start the offset at 0, for now
     MPI_Offset offset = compute_offset(filename);
@@ -303,6 +302,7 @@ int add_to_adjlist(std::string line){
 }
 
 void bfs(int u, int ccCounter) {
+  printf("bfs at %d\n", u);
   std::list<int> queue;
   visited[u] = true;
   queue.push_back(u);
