@@ -10,4 +10,4 @@
 
 module load xl
 
-srun -O -N64 --ntasks-per-node 16 -n 1024 --time 60 --partition small ./project.xl
+srun -O -N8 --ntasks-per-node 16 -n 128 --time 60 --partition small ./project.xl
