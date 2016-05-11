@@ -31,7 +31,6 @@ std::map<int, std::vector<int> > g_adj_list; // the adjacency list to store the 
 bool * visited = (bool *)calloc(g_max_id, sizeof(bool)); // visited list for bfs
 bool * inQueue = (bool *)calloc(g_max_id, sizeof(bool)); // queue for bfs
 
-std::map<int, std::vector<int> > boundaryEdges; // all of the boudary edges for the CCs
 std::vector<std::set<int> > connectedComponents; // the connected connected components themselves
 
 // timer variables
@@ -84,11 +83,13 @@ int main(int argc, char** argv) {
 
   start_cc_time = GetTimeBase(); // start the CC timer
 
+  //set all nodes to not visited 
   for(int i=0; i<g_max_id; i++){
     visited[i]=false;
     inQueue[i]=false;
   }
 
+  //create a reverse graph adj_list and add to map so connections are not lost
   for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++){
     visited[itr->first]=true;
   }
@@ -113,6 +114,7 @@ int main(int argc, char** argv) {
     visited[itr->first]=false;
   }
 
+  //Run BFS on each component in the adj_list
   for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++) {
     if(!visited[itr->first]) {
       ccCounter += 1;
@@ -123,6 +125,8 @@ int main(int argc, char** argv) {
   }
 
   printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
+
+  //Run BFS on each component in the adj_list
   free(visited);
   free(inQueue);
 
@@ -351,32 +355,22 @@ int add_to_adjlist(std::string line){
 
 /* ========== bfs() ========== */
 /*
-    *
+    * take a node and perform bfs on it to find all connected components
 */
 void bfs(int u, int ccCounter) {
-  std::list<int> queue;
+  std::list<int> queue;     //create a queue
   visited[u] = true;
   queue.push_back(u);
-  int prev = u;
-  while(!queue.empty()) {
-    int s=queue.front();
+  while(!queue.empty()) {   //while the queue is not empty
+    int s=queue.front();    //pop off the front element and mark as visited
     visited[s]=true;
     connectedComponents[ccCounter].insert(s);
     queue.pop_front();
     std::map<int, std::vector<int> >::iterator adj_list_itr;
     adj_list_itr = g_adj_list.find(s);
-    if(adj_list_itr->second.size() == 1) {
-      std::map<int, std::vector<int> >::iterator it = boundaryEdges.find(prev);
-      if(it != boundaryEdges.end()){
-        it->second.push_back(s);
-      }
-      else{
-        std::vector<int> temp;
-        temp.push_back(s);
-        boundaryEdges[prev] = temp;
-      }
-    }
-    else {
+
+    //find all adj nodes and put in queue if not already visited or in queue
+    if(adj_list_itr->second.size() != 1) {
       for(std::vector<int>::iterator itr = adj_list_itr->second.begin(); itr != adj_list_itr->second.end(); itr++) {
         if(!visited[*itr]){
           if(inQueue[*itr]) {
@@ -389,7 +383,6 @@ void bfs(int u, int ccCounter) {
         }
       }
     }
-    prev = s;
   }
 }
 
