@@ -38,6 +38,9 @@ unsigned long long start_parse_time=0;
 unsigned long long end_parse_time=0;
 unsigned long long start_cc_time=0;
 unsigned long long end_cc_time=0;
+unsigned long long start_merge_time=0;
+unsigned long long end_merge_time=0;
+
 
 /* ========== function declarations ========== */
 void parse_file_one_rank();
@@ -137,6 +140,7 @@ int main(int argc, char** argv) {
     printf("CC Time (seconds?): %f\n", float(end_cc_time - start_cc_time)/float(1600000000));
   }
 
+  start_merge_time = GetTimeBase();
   // Finalize the MPI environment.
 
   gap = 1;
@@ -190,6 +194,12 @@ int main(int argc, char** argv) {
     gap*=2;
   }
   MPI_Barrier(MPI_COMM_WORLD);
+  end_merge_time = GetTimeBase();
+
+  if (g_mpi_rank == 0){
+    printf("Merge Time: %llu\n", end_cc_time - start_cc_time);
+    printf("Merge Time (seconds?): %f\n", float(end_cc_time - start_cc_time)/float(1600000000));
+  }
 
   MPI_Finalize();
 
