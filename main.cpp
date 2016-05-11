@@ -12,6 +12,8 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
+#include<hwi/include/bqc/A2_inlines.h>
+
 
 int g_world_size;
 int g_mpi_rank;
@@ -26,6 +28,11 @@ bool * visited = (bool *)calloc(g_max_id, sizeof(bool));
 bool * inQueue = (bool *)calloc(g_max_id, sizeof(bool));
 std::map<int, std::vector<int> > boundaryEdges;
 std::vector<std::set<int> > connectedComponents;
+
+unsigned long long start_parse_time=0;
+unsigned long long end_parse_time=0;
+unsigned long long start_cc_time=0;
+unsigned long long end_cc_time=0;
 
 
 void parse_file_one_rank();
@@ -47,6 +54,8 @@ int main(int argc, char** argv) {
   // Get the rank of the process
   MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
 
+  start_parse_time = GetTimeBase();
+
   start_id = g_mpi_rank*(g_max_id / g_world_size);
   end_id = (g_mpi_rank+1)*(g_max_id / g_world_size);
   if (g_mpi_rank == g_world_size-1){
@@ -57,6 +66,16 @@ int main(int argc, char** argv) {
 
   // Print off a hello world message
   parse_file();
+
+  end_parse_time = GetTimeBase();
+
+  if (g_mpi_rank == 0){
+    printf("Parse Time (raw timer): %llu\n", end_parse_time - start_parse_time);
+    printf("Parse Time (seconds?): %f\n", float(end_parse_time - start_parse_time)/float(1600000000));
+  }
+
+  start_cc_time = GetTimeBase();
+
   for(int i=0; i<g_max_id; i++){
     visited[i]=false;
     inQueue[i]=false;
@@ -73,7 +92,7 @@ int main(int argc, char** argv) {
         if(g_adj_list.find(temp[i])==g_adj_list.end()){
           std::vector<int> temp1;
           temp1.push_back(itr->first);
-          g_adj_list[temp[i]] = temp1;  
+          g_adj_list[temp[i]] = temp1;
         }
         else{
           g_adj_list[temp[i]].push_back(itr->first);
@@ -81,7 +100,7 @@ int main(int argc, char** argv) {
       }
     }
   }
-  
+
   for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++){
     visited[itr->first]=false;
   }
@@ -91,29 +110,21 @@ int main(int argc, char** argv) {
       ccCounter += 1;
       std::set<int> temp;
       connectedComponents.push_back(temp);
-      bfs(itr->first, ccCounter); 
+      bfs(itr->first, ccCounter);
     }
   }
-  // for(int i=0; i<connectedComponents.size(); i++){
-  //   std::cout<<"CC "<<i<<" - ";
-  //   for(int j=0; j<connectedComponents[i].size(); j++) {
-  //     std::cout<<connectedComponents[i][j]<<", ";
-  //   }
-  //   std::cout<<std::endl;
-  // }
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if(g_mpi_rank == 0){
-  //   printf("Done computing spanning forests");
-  // }
+
   printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
   free(visited);
   free(inQueue);
-  MPI_Barrier(MPI_COMM_WORLD);
-  //if (g_mpi_rank == 0){
-   // parse_file();
-    //printf("Rank: %d    g_adj_list.size(): %lu\n", g_mpi_rank, g_adj_list.size());
-  // }
-  MPI_Barrier(MPI_COMM_WORLD);
+
+  end_cc_time = GetTimeBase();
+
+  if (g_mpi_rank == 0){
+    printf("CC Time: %llu\n", end_cc_time - start_cc_time);
+    printf("CC Time (seconds?): %f\n", float(end_cc_time - start_cc_time)/float(1600000000));
+  }
+
   // Finalize the MPI environment.
 
   gap = 1;
@@ -378,7 +389,7 @@ void bfs(int u, int ccCounter) {
           }
           else{
             queue.push_back(*itr);
-            inQueue[*itr] = true;  
+            inQueue[*itr] = true;
           }
         }
       }
