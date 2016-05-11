@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     visited[itr->first]=false;
   }
 
-  //Run BFS on each component in the adj_list
+  // Run BFS on each component in the adj_list
   for(std::map<int, std::vector<int> >::iterator itr =g_adj_list.begin(); itr!=g_adj_list.end(); itr++) {
     if(!visited[itr->first]) {
       ccCounter += 1;
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 
   printf("Rank: %d    g_adj_list.size(): %lu    elements in list: %d    CCs: %d\n", g_mpi_rank, g_adj_list.size(), count, ccCounter+1);
 
-  //Run BFS on each component in the adj_list
+  // Free memory only used by BFS
   free(visited);
   free(inQueue);
 
