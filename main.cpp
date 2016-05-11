@@ -143,25 +143,25 @@ int main(int argc, char** argv) {
   start_merge_time = GetTimeBase();
   // Finalize the MPI environment.
 
-  gap = 1;
+  gap = 1; // gap between merging ranks
   int num_cc;
- // MPI_Request first_req, req;
   MPI_Status stat;
   int cc_size;
   bracket_size = g_world_size;
+
   while(bracket_size > 1){
     if(g_mpi_rank%gap != 0) continue;
 
     if((g_mpi_rank/gap)%2 == 0){ //recieves
-      MPI_Recv(&num_cc, 1, MPI_INT, g_mpi_rank+gap, 1,MPI_COMM_WORLD, &stat);
+      MPI_Recv(&num_cc, 1, MPI_INT, g_mpi_rank+gap, 1,MPI_COMM_WORLD, &stat); //recieve number of ccs
       for(int j = 0; j < num_cc; j++){
-        MPI_Recv(&cc_size, 1, MPI_INT, g_mpi_rank+gap, 2*j, MPI_COMM_WORLD, &stat);
+        MPI_Recv(&cc_size, 1, MPI_INT, g_mpi_rank+gap, 2*j, MPI_COMM_WORLD, &stat); //recieve size of individual cc
         int incoming_cc[cc_size];
-        MPI_Recv(incoming_cc, cc_size, MPI_INT, g_mpi_rank+gap, 2*j + 1, MPI_COMM_WORLD, &stat);
+        MPI_Recv(incoming_cc, cc_size, MPI_INT, g_mpi_rank+gap, 2*j + 1, MPI_COMM_WORLD, &stat); //recieve cc as array
         std::set<int> new_cc(incoming_cc, incoming_cc + sizeof(incoming_cc) / sizeof(incoming_cc[0]));
 
-        std::vector<int> overlaps;
-        for(std::set<int>::iterator iter = new_cc.begin(); iter != new_cc.end(); ++iter){
+        std::vector<int> overlaps; 
+        for(std::set<int>::iterator iter = new_cc.begin(); iter != new_cc.end(); ++iter){ // merge all overlapping ccs
           for(unsigned i = 0; i < connectedComponents.size(); ++i){
             if(connectedComponents[i].find(*iter) != connectedComponents[i].end()){
                 new_cc.insert(connectedComponents[i].begin(), connectedComponents[i].end());
@@ -170,23 +170,23 @@ int main(int argc, char** argv) {
           }
         }
         for(unsigned i = 0; i < overlaps.size(); ++i){
-          connectedComponents.erase(connectedComponents.begin() + overlaps[i]);
+          connectedComponents.erase(connectedComponents.begin() + overlaps[i]); //removes ccs found to overlap with new cc
         }
         connectedComponents.push_back(new_cc);
       }
     }else if((g_mpi_rank/gap)%2 == 1){ //sends
       num_cc = connectedComponents.size();
-      MPI_Send(&num_cc, 1, MPI_INT, g_mpi_rank-gap, 1,MPI_COMM_WORLD);
+      MPI_Send(&num_cc, 1, MPI_INT, g_mpi_rank-gap, 1,MPI_COMM_WORLD); //sends number of ccs
       for(int j = 0; j < num_cc; j++){
         cc_size = connectedComponents[j].size();
-        MPI_Send(&cc_size, 1, MPI_INT, g_mpi_rank-gap, 2*j, MPI_COMM_WORLD);
+        MPI_Send(&cc_size, 1, MPI_INT, g_mpi_rank-gap, 2*j, MPI_COMM_WORLD); //sends size of individual cc
         int outgoing_cc[cc_size];
         int i =0;
-        for(std::set<int>::iterator iter = connectedComponents[j].begin(); iter != connectedComponents[j].end(); ++iter){
+        for(std::set<int>::iterator iter = connectedComponents[j].begin(); iter != connectedComponents[j].end(); ++iter){ //convert cc to array
           outgoing_cc[i] = *iter;
           ++i;
         }
-        MPI_Send(outgoing_cc, cc_size, MPI_INT, g_mpi_rank-gap, 2*j + 1, MPI_COMM_WORLD);
+        MPI_Send(outgoing_cc, cc_size, MPI_INT, g_mpi_rank-gap, 2*j + 1, MPI_COMM_WORLD); //send cc as array
       }
     }
 
