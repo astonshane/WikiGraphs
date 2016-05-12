@@ -164,25 +164,30 @@ int main(int argc, char** argv) {
         MPI_Recv(&out_size, 1, MPI_INT, g_mpi_rank+gap, 4*j+2, MPI_COMM_WORLD, &stat); //recieve size of individual cc
         int in_edges[out_size];
         MPI_Recv(in_edges, out_size, MPI_INT, g_mpi_rank+gap, 4*j + 3, MPI_COMM_WORLD, &stat); //recieve cc as array
-        std::set<int> new_oe(in_edges, in_edges+out_size);
+        std::set<int> new_oe;
 
         for(int k = 0; k < out_size; ++k){
-         std::list<std::set<int> >::iterator oe_iter = outgoingEdges.begin();
-         for(std::list<std::set<int> >::iterator cc_iter = connectedComponents.begin(); cc_iter != connectedComponents.end(); ++cc_iter){
-           if(cc_iter->find(in_edges[k]) != cc_iter->end()){
-            new_cc.insert(cc_iter->begin(), cc_iter->end());
-            new_oe.insert(oe_iter->begin(), oe_iter->end());
-            connectedComponents.erase(cc_iter++);
-            outgoingEdges.erase(oe_iter++);
-          }else{
-            oe_iter++;
+          std::list<std::set<int> >::iterator oe_iter = outgoingEdges.begin();
+          for(std::list<std::set<int> >::iterator cc_iter = connectedComponents.begin(); cc_iter != connectedComponents.end(); ++cc_iter){
+            if(cc_iter->find(in_edges[k]) != cc_iter->end()){
+                new_cc.insert(cc_iter->begin(), cc_iter->end());
+                for(std::set<int>::iterator out_edge_trim = oe_iter->begin(); out_edge_trim != oe_iter->end(); ++out_edge_trim){
+                  if(new_cc.find(*out_edge_trim) == new_cc.end()){
+                    new_oe.insert(*out_edge_trim);
+                  }
+                }
+                connectedComponents.erase(cc_iter++);
+                outgoingEdges.erase(oe_iter++);
+            }else{
+                new_oe.insert(in_edges[k]);
+                oe_iter++;
+            }
+            if(connectedComponents.size() == 0) break;
           }
-          if(connectedComponents.size() == 0) break;	
         }
+        connectedComponents.push_back(new_cc);
+        outgoingEdges.push_back(new_oe);
       }
-      connectedComponents.push_back(new_cc);
-      outgoingEdges.push_back(new_oe);
-    }
     }else if((g_mpi_rank/gap)%2 == 1){ //sends
       num_cc = connectedComponents.size();
       MPI_Send(&num_cc, 1, MPI_INT, g_mpi_rank-gap, 1,MPI_COMM_WORLD); //sends number of ccs
@@ -198,7 +203,7 @@ int main(int argc, char** argv) {
           ++i;
         }
         MPI_Send(outgoing_cc, cc_size, MPI_INT, g_mpi_rank-gap, 4*j + 1, MPI_COMM_WORLD); //send cc as array
-        
+
         out_size = oe_iter->size();
         MPI_Send(&out_size, 1, MPI_INT, g_mpi_rank-gap, 4*j+2, MPI_COMM_WORLD); //sends size of outgoing edges
         int out_edges[out_size];
@@ -376,7 +381,7 @@ return 0;
     * take a line from the file and add the edge to the adjacency list
     * returns the id that it found
 */
-    int add_to_adjlist(std::string line){
+int add_to_adjlist(std::string line){
   int tab_pos = line.find("\t"); // get the tab position
   int one = atoi(line.substr(0, tab_pos).c_str()); // the first user id
   int two = atoi(line.substr(tab_pos+1).c_str()); // the second user id
